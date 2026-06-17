@@ -1,183 +1,142 @@
-// src/components/SpectateCalendar.tsx
-import { Trophy, Percent, Heart } from "lucide-react"
+import React from 'react';
+import { Calendar } from 'lucide-react';
 
-/* ------------------------------------------------------------------ */
-/* Types & Data (달력에 필요한 부품들)                                   */
-/* ------------------------------------------------------------------ */
-type Team = "T1" | "GEN" | "HLE" | "DK" | "KT" | "BRO" | "NS" | "DRX" | "KDF" | "FOX"
-type MatchResult = "win" | "loss" | "scheduled"
-
-interface CalendarMatch {
-  day: number
-  opponent: Team
-  result: MatchResult
-  score?: string
-}
-
-const teamColors: Record<Team, string> = {
-  T1: "oklch(0.55 0.16 250)", GEN: "oklch(0.45 0.05 280)", HLE: "oklch(0.62 0.18 35)",
-  DK: "oklch(0.5 0.13 200)", KT: "oklch(0.58 0.22 25)", BRO: "oklch(0.6 0.14 145)",
-  NS: "oklch(0.55 0.12 300)", DRX: "oklch(0.5 0.14 230)", KDF: "oklch(0.62 0.16 80)",
-  FOX: "oklch(0.55 0.18 20)",
-}
-
-const seasonSummary = {
-  total: 15,
-  wins: 10,
-  losses: 5,
-  winRate: 66.7,
-  mostTeam: "T1" as Team,
-}
-
-const calendarMatches: CalendarMatch[] = [
-  { day: 3, opponent: "KT", result: "win", score: "2:0" },
-  { day: 7, opponent: "GEN", result: "loss", score: "1:2" },
-  { day: 11, opponent: "HLE", result: "win", score: "2:1" },
-  { day: 14, opponent: "DK", result: "win", score: "2:0" },
-  { day: 18, opponent: "BRO", result: "loss", score: "0:2" },
-  { day: 21, opponent: "NS", result: "scheduled" },
-  { day: 25, opponent: "DRX", result: "scheduled" },
-  { day: 28, opponent: "GEN", result: "scheduled" },
-]
-
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"]
-const MONTH_LABEL = "2025. 06"
-const DAYS_IN_MONTH = 30
-const FIRST_WEEKDAY = 0
-
-/* ------------------------------------------------------------------ */
-/* Helper Functions                                                   */
-/* ------------------------------------------------------------------ */
-function cn(...classes: (string | false | null | undefined)[]) {
-  return classes.filter(Boolean).join(" ")
-}
-
-function getMatch(day: number): CalendarMatch | undefined {
-  return calendarMatches.find((m) => m.day === day)
-}
-
-/* ------------------------------------------------------------------ */
-/* Sub-Components (달력 내부 부품들)                                    */
-/* ------------------------------------------------------------------ */
-function DayCell({ day }: { day: number | null }) {
-  if (day === null) {
-    return <div className="aspect-square rounded-md" />
-  }
-  const match = getMatch(day)
-  const isWin = match?.result === "win"
-  const isLoss = match?.result === "loss"
-  const isScheduled = match?.result === "scheduled"
-
-  return (
-    <div
-      className={cn(
-        "relative flex aspect-square flex-col rounded-md border p-1 transition-colors sm:p-1.5",
-        match ? "border-[var(--border)] bg-[var(--card)]" : "border-transparent bg-[var(--muted)]/30",
-        isWin && "border-[var(--victory)]/30 bg-[var(--victory)]/5",
-        isLoss && "border-[var(--defeat)]/30 bg-[var(--defeat)]/5",
-      )}
-    >
-      <span className={cn("text-[10px] font-medium sm:text-xs", match ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
-        {day}
-      </span>
-
-      {match && (
-        <div className="mt-auto flex flex-col gap-0.5">
-          {(isWin || isLoss) && (
-            <span className={cn("inline-flex w-fit -rotate-3 items-center rounded-sm px-1 py-px font-heading text-[8px] uppercase leading-none tracking-wider text-white shadow-sm sm:text-[9px]", isWin ? "bg-[var(--victory)]" : "bg-[var(--defeat)]")}>
-              {isWin ? "Victory" : "Defeat"}
-            </span>
-          )}
-          {isScheduled && (
-            <span className="inline-flex w-fit items-center rounded-sm border border-[var(--accent)]/50 bg-[var(--accent)]/15 px-1 py-px text-[8px] font-semibold leading-none text-[var(--accent-foreground)] sm:text-[9px]">
-              예정
-            </span>
-          )}
-          <span className="truncate text-[8px] leading-tight text-[var(--muted-foreground)] sm:text-[10px]">
-            vs {match.opponent}
-            {match.score ? ` ${match.score}` : ""}
-          </span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Main Component Export                                               */
-/* ------------------------------------------------------------------ */
 export default function SpectateCalendar() {
-  const cells: (number | null)[] = [
-    ...Array(FIRST_WEEKDAY).fill(null),
-    ...Array.from({ length: DAYS_IN_MONTH }, (_, i) => i + 1),
-  ]
+  const days = [
+    { date: 1, match: null },
+    { date: 2, match: null },
+    { date: 3, match: { opponent: "KT", result: "WIN", score: "2:0" } },
+    { date: 4, match: null },
+    { date: 5, match: null },
+    { date: 6, match: null },
+    { date: 7, match: { opponent: "GEN", result: "LOSE", score: "1:2" } },
+    { date: 8, match: null },
+    { date: 9, match: null },
+    { date: 10, match: null },
+    { date: 11, match: { opponent: "HLE", result: "WIN", score: "2:1" } },
+    { date: 12, match: null },
+    { date: 13, match: null },
+    { date: 14, match: { opponent: "DK", result: "WIN", score: "2:0" } },
+    { date: 15, match: null },
+    { date: 16, match: null },
+    { date: 17, match: null }, // 오늘
+    { date: 18, match: { opponent: "BRO", result: "LOSE", score: "0:2" } },
+    { date: 19, match: null },
+    { date: 20, match: null },
+    { date: 21, match: { opponent: "NS", result: "FUTURE", score: "예정" } },
+    { date: 22, match: null },
+    { date: 23, match: null },
+    { date: 24, match: null },
+    { date: 25, match: { opponent: "DRX", result: "FUTURE", score: "예정" } },
+    { date: 26, match: null },
+    { date: 27, match: null },
+    { date: 28, match: { opponent: "GEN", result: "FUTURE", score: "예정" } },
+    { date: 29, match: null },
+    { date: 30, match: null },
+  ];
+
+  const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-      <div className="flex items-center justify-between">
+    /* 🤍 화이트 카드 배경 + 확실한 흑연색 테두리 */
+    <div className="w-full bg-white text-[#111111] p-6 rounded-xl border border-[#d1d5db] shadow-sm">
+      
+      <div className="flex items-center justify-between border-b border-[#e5e7eb] pb-4 mb-4">
         <div className="flex items-center gap-2">
-          <span className="h-4 w-1 rounded-full bg-[var(--primary)]" />
-          <h2 className="font-heading text-lg tracking-tight text-[var(--foreground)]">
-            직관 전적 캘린더
-          </h2>
+          <Calendar className="w-5 h-5 text-[#c8aa6e]" />
+          <h2 className="text-lg font-black tracking-wide text-[#111111]">직관 전적 캘린더</h2>
         </div>
-        <span className="font-mono text-sm text-[var(--muted-foreground)]">
-          {MONTH_LABEL}
-        </span>
+        <span className="text-xs font-bold text-[#6b7280] tracking-wider">2026 . 06</span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--muted-foreground)]">
-        <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-[var(--victory)]" /> 승리 직관
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-[var(--defeat)]" /> 패배 직관
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm border border-[var(--accent)]/50 bg-[var(--accent)]/15" /> 경기 예정
-        </span>
+      <div className="grid grid-cols-7 gap-1 text-center mb-2">
+        {weekDays.map((day, index) => (
+          <span 
+            key={day} 
+            className={`text-xs font-bold py-1 ${
+              index === 0 ? "text-[#e84057]" : index === 6 ? "text-[#38bdf8]" : "text-[#6b7280]"
+            }`}
+          >
+            {day}
+          </span>
+        ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
-        {WEEKDAYS.map((d, i) => (
-          <div key={d} className={cn("text-center text-[10px] font-medium sm:text-xs", i === 0 ? "text-[var(--defeat)]/70" : "text-[var(--muted-foreground)]")}>
-            {d}
+      <div className="grid grid-cols-7 gap-1.5">
+        {days.map((item) => (
+          <div 
+            key={item.date} 
+            className="min-h-[70px] bg-[#f9fafb] border border-[#e5e7eb] p-1 rounded-md flex flex-col justify-between hover:border-[#c8aa6e] transition-colors"
+          >
+            <span className="text-xs font-bold text-[#9ca3af]">{item.date}</span>
+            
+            {item.match && (
+              <div className="w-full flex flex-col gap-0.5 mt-1">
+                {item.match.result === "WIN" && (
+                  /* 라이트 모드용 화사한 블루 전적 */
+                  <div className="bg-[#ecf2ff] border border-[#b3ccff] rounded px-1 py-0.5 text-center">
+                    <span className="text-[9px] font-black text-[#2255cc] block leading-none">W · vs {item.match.opponent}</span>
+                    <span className="text-[8px] text-[#4477ee] block font-bold mt-0.5">{item.match.score}</span>
+                  </div>
+                )}
+                
+                {item.match.result === "LOSE" && (
+                  /* 라이트 모드용 화사한 레드 전적 */
+                  <div className="bg-[#fff0f2] border border-[#ffd0d6] rounded px-1 py-0.5 text-center">
+                    <span className="text-[9px] font-black text-[#d93846] block leading-none">L · vs {item.match.opponent}</span>
+                    <span className="text-[8px] text-[#e05260] block font-bold mt-0.5">{item.match.score}</span>
+                  </div>
+                )}
+
+                {item.match.result === "FUTURE" && (
+                  <div className="bg-[#f3f4f6] border border-[#e5e7eb] rounded px-1 py-0.5 text-center">
+                    <span className="text-[9px] font-bold text-[#6b7280] block leading-none">vs {item.match.opponent}</span>
+                    <span className="text-[8px] text-[#9ca3af] block font-medium mt-0.5">{item.match.score}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
-        {cells.map((day, i) => (
-          <DayCell key={i} day={day} />
-        ))}
+{/* 👑 하단 요약 (승리 요정 승률 게이지 바) */}
+      <div className="mt-6 pt-5 border-t border-[#e5e7eb]">
+        
+        {/* 게이지 바 상단 텍스트 */}
+        <div className="flex items-end justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-[#6b7280]">승리 요정 지수 🧚‍♀️</span>
+            <span className="text-[10px] bg-[#f3f4f6] text-[#9ca3af] px-1.5 py-0.5 rounded font-bold">총 5전 3승</span>
+          </div>
+          <span className="text-sm font-black text-[#2255cc]">60%</span>
+        </div>
+
+        {/* 게이지 바 본체 */}
+        <div className="w-full h-2.5 bg-[#f3f4f6] rounded-full overflow-hidden flex border border-[#e5e7eb] shadow-inner">
+          {/* 승리 게이지 (파란색, width 값으로 퍼센트 조절) */}
+          <div 
+            className="h-full bg-[#2255cc] transition-all duration-700 ease-out" 
+            style={{ width: '60%' }}
+            title="승리 60%"
+          ></div>
+          {/* 패배 게이지 (빨간색, 원치 않으시면 이 줄은 지워도 됩니다) */}
+          <div 
+            className="h-full bg-[#e05260] transition-all duration-700 ease-out opacity-80" 
+            style={{ width: '40%' }}
+            title="패배 40%"
+          ></div>
+        </div>
+
+        {/* 하단 범례 */}
+        <div className="flex justify-between mt-2 text-[10px] font-bold text-[#9ca3af]">
+          <span className="text-[#2255cc]">W</span>
+          <span>승률 (Win Rate)</span>
+          <span className="text-[#e05260]">L</span>
+        </div>
+
       </div>
 
-      <div className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 p-3.5">
-        <div className="mb-2 flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Summary</span>
-          <span className="text-[11px] text-[var(--muted-foreground)]">내 직관 전적</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-heading text-xl text-[var(--foreground)]">{seasonSummary.total}전</span>
-            <span className="font-heading text-base text-[var(--victory)]">{seasonSummary.wins}승</span>
-            <span className="font-heading text-base text-[var(--defeat)]">{seasonSummary.losses}패</span>
-          </div>
-          <div className="h-4 w-px bg-[var(--border)]" />
-          <div className="flex items-baseline gap-1">
-            <span className="text-xs text-[var(--muted-foreground)]">승률</span>
-            <span className="font-heading text-base text-[var(--foreground)]">{seasonSummary.winRate}%</span>
-          </div>
-          <div className="h-4 w-px bg-[var(--border)]" />
-          <div className="flex items-baseline gap-1">
-            <span className="text-xs text-[var(--muted-foreground)]">최다 직관</span>
-            <span className="font-heading text-base text-[var(--primary)]">{seasonSummary.mostTeam}</span>
-          </div>
-        </div>
-        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
-          <div className="h-full rounded-full bg-[var(--victory)]" style={{ width: `${seasonSummary.winRate}%` }} />
-        </div>
-      </div>
-    </section>
-  )
+    </div> /* <- 달력 전체를 감싸는 마지막 닫는 태그 */
+  );
 }

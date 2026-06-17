@@ -1,122 +1,111 @@
-// src/components/ProfileHeader.tsx
-import { Trophy, Percent, Heart } from "lucide-react"
+import React from 'react';
+import { Award, Percent, Flame } from 'lucide-react';
 
-// 이사에 필요한 데이터와 타입을 여기에 임시로 같이 둡니다.
-type Team = "T1" | "GEN" | "HLE" | "DK" | "KT" | "BRO" | "NS" | "DRX" | "KDF" | "FOX"
-
-const teamColors: Record<Team, string> = {
-  T1: "oklch(0.55 0.16 250)",
-  GEN: "oklch(0.45 0.05 280)",
-  HLE: "oklch(0.62 0.18 35)",
-  DK: "oklch(0.5 0.13 200)",
-  KT: "oklch(0.58 0.22 25)",
-  BRO: "oklch(0.6 0.14 145)",
-  NS: "oklch(0.55 0.12 300)",
-  DRX: "oklch(0.5 0.14 230)",
-  KDF: "oklch(0.62 0.16 80)",
-  FOX: "oklch(0.55 0.18 20)",
+// 부모 컴포넌트(App.tsx)로부터 받아올 데이터 명세표
+interface ProfileHeaderProps {
+  nickname: string;
+  tagline: string;
+  mostTeam: string;
+  myMostTeamMatches: number; // 내가 간 모스트 팀 직관 횟수 (분자)
+  totalMostTeamMatches: number; // 크롤링 등으로 가져올 모스트 팀의 총 경기 수 (분모)
 }
 
-const myProfile = {
-  icon: "/images/summoner-icon.png",
-  name: "직관마스터",
-  tag: "LCK",
-  tier: "골드 직관러",
-  yearCount: 15,
-  winRate: 66.7,
-  mostTeam: "T1" as Team,
-}
+export default function ProfileHeader({
+  nickname = "민동통구리",
+  tagline = "LCK",
+  mostTeam = "T1",
+  myMostTeamMatches = 5, // 임시 더미 데이터 (테스트용)
+  totalMostTeamMatches = 20, // 임시 더미 데이터 (테스트용)
+}: ProfileHeaderProps) {
+  
+  // 🎯 오늘 기획한 "모스트 팀 직관 비율" 계산기
+  const attendanceRate = totalMostTeamMatches > 0 
+    ? (myMostTeamMatches / totalMostTeamMatches) * 100 
+    : 0;
 
-function InfoStat({
-  label,
-  value,
-  icon,
-  accent,
-}: {
-  label: string
-  value: string
-  icon: React.ReactNode
-  accent?: string
-}) {
+  // 👑 비율에 따른 롤 티어 판독기 규칙
+  let tierName = "BRONZE";
+  let tierEmoji = "🥉";
+  let tierColor = "text-[#a77044]"; // 브론즈 브라운
+
+  if (attendanceRate >= 50) {
+    tierName = "CHALLENGER";
+    tierEmoji = "👑";
+    tierColor = "text-[#f43f5e] font-extrabold animate-pulse"; // 빛나는 챌린저 레드
+  } else if (attendanceRate >= 30) {
+    tierName = "DIAMOND";
+    tierEmoji = "💎";
+    tierColor = "text-[#38bdf8]"; // 다이아 블루
+  } else if (attendanceRate >= 20) {
+    tierName = "GOLD";
+    tierEmoji = "🥇";
+    tierColor = "text-[#fbbf24]"; // 골드 황금색
+  } else if (attendanceRate >= 10) {
+    tierName = "SILVER";
+    tierEmoji = "🥈";
+    tierColor = "text-[#94a3b8]"; // 실버 그레이
+  }
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3 sm:px-5">
-      <div
-        className="flex size-9 shrink-0 items-center justify-center rounded-md text-[var(--primary-foreground)]"
-        style={{ backgroundColor: accent ?? "var(--primary)" }}
-      >
-        {icon}
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-          {label}
-        </span>
-        <span className="font-heading text-lg leading-tight text-[var(--foreground)]">
-          {value}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// export default를 붙여야 다른 파일(App.tsx)에서 이 블록을 불러와 쓸 수 있습니다!
-export default function ProfileHeader() {
-  return (
-    <header className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[var(--primary)] via-[var(--accent)] to-[var(--primary)]" />
-      <div className="flex flex-col gap-6 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-4">
+    <div className="w-full bg-[#0a1428] text-[#f0e6d2] p-6 rounded-xl border border-[#c8aa6e] shadow-2xl mb-6">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+        
+        {/* 왼쪽 영역: 소환사 아이콘 및 닉네임 */}
+        <div className="flex items-center gap-5">
           <div className="relative">
-            <div className="overflow-hidden rounded-lg border-2 border-[var(--primary)]/30 bg-[var(--muted)]">
-              <img
-                src={myProfile.icon || "/placeholder.svg"}
-                alt="내 소환사 아이콘"
-                width={72}
-                height={72}
-                className="size-16 object-cover sm:size-[72px]"
-              />
+            <div className="w-20 h-20 bg-[#1e232a] rounded-full border-2 border-[#c8aa6e] flex items-center justify-center overflow-hidden shadow-inner">
+              {/* 임시 캐릭터 이모지 (추후 이미지 대체 가능) */}
+              <span className="text-3xl">🧙‍♂️</span>
             </div>
-            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded border border-[var(--accent)]/50 bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--accent-foreground)]">
-              LV.15
+            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#c8aa6e] text-[#0a1428] text-xs font-bold px-2 py-0.5 rounded-full border border-[#0a1428]">
+              Lv.15
             </span>
           </div>
-          <div className="flex flex-col gap-1.5">
+          
+          <div>
             <div className="flex items-baseline gap-1.5">
-              <h1 className="font-heading text-2xl tracking-tight text-[var(--foreground)] sm:text-3xl">
-                {myProfile.name}
-              </h1>
-              <span className="font-mono text-sm text-[var(--muted-foreground)]">
-                #{myProfile.tag}
-              </span>
+              <h1 className="text-2xl font-black tracking-wide text-white">{nickname}</h1>
+              <span className="text-sm font-bold text-[#616c7f]">#{tagline}</span>
             </div>
-            <div className="flex w-fit items-center gap-1.5 rounded-md border border-[var(--accent)]/40 bg-[var(--accent)]/15 px-2.5 py-1">
-              <Trophy className="size-3.5 text-[var(--gold)]" />
-              <span className="text-xs font-semibold text-[var(--accent-foreground)]">
-                {myProfile.tier}
+            {/* 실시간 티어 뱃지 */}
+            <div className={`flex items-center gap-1 mt-1 text-sm font-black tracking-wider ${tierColor}`}>
+              <span>{tierEmoji}</span>
+              <span>{tierName}</span>
+              <span className="text-xs text-[#616c7f] font-normal ml-1">
+                ({attendanceRate.toFixed(0)}% 출석)
               </span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <InfoStat
-            label="올해 직관"
-            value={`${myProfile.yearCount}회`}
-            icon={<Trophy className="size-4" />}
-          />
-          <InfoStat
-            label="직관 승률"
-            value={`${myProfile.winRate}%`}
-            icon={<Percent className="size-4" />}
-            accent="var(--gold)"
-          />
-          <InfoStat
-            label="모스트 팀"
-            value={myProfile.mostTeam}
-            icon={<Heart className="size-4" />}
-            accent={teamColors[myProfile.mostTeam]}
-          />
+        {/* 오른쪽 영역: 롤 인게임 스탯 카드창 */}
+        <div className="grid grid-cols-3 gap-4 w-full md:w-auto min-w-[360px]">
+          {/* 스탯 1: 직관 횟수 */}
+          <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center">
+            <Award className="w-5 h-5 text-[#38bdf8] mb-1" />
+            <span className="text-[11px] text-[#616c7f] font-bold block">올해 직관</span>
+            <span className="text-base font-black text-white">{myMostTeamMatches}회</span>
+          </div>
+
+          {/* 스탯 2: 직관 승률 */}
+          <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center">
+            <Percent className="w-5 h-5 text-[#fbbf24] mb-1" />
+            <span className="text-[11px] text-[#616c7f] font-bold block">직관 승률</span>
+            <span className="text-base font-black text-white">100%</span>
+          </div>
+
+          {/* 스탯 3: 모스트 팀 (손그림 감성 일러스트풍 컴포넌트 자리) */}
+          <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center relative overflow-hidden group">
+            <Flame className="w-5 h-5 text-[#f43f5e] mb-1" />
+            <span className="text-[11px] text-[#616c7f] font-bold block">모스트 팀</span>
+            {/* 추후 일러스트 패키지가 들어올 자리. 지금은 롤 클라이언트 뱃지 감성 */}
+            <span className="text-sm font-black px-2 py-0.5 rounded bg-[#f43f5e] text-white mt-0.5 shadow-sm">
+              🎨 {mostTeam}
+            </span>
+          </div>
         </div>
+
       </div>
-    </header>
-  )
+    </div>
+  );
 }
