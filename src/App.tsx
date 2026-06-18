@@ -1,61 +1,57 @@
+import React, { useState } from 'react';
 import ProfileHeader from "./components/ProfileHeader"
 import SpectateCalendar from "./components/SpectateCalendar"
 import DiaryFeed from "./components/DiaryFeed"
-
-/* ------------------------------------------------------------------ */
-/* Theme styles (self-contained, no Tailwind config required)          */
-/* ------------------------------------------------------------------ */
-
-const themeStyles = `
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap');
-
-.lck-root {
-  
-  --foreground: oklch(0.21 0.03 250);
-  --card: oklch(1 0 0);
-  --primary: oklch(0.55 0.16 250);
-  --primary-foreground: oklch(0.99 0.005 240);
-  --muted: oklch(0.955 0.008 240);
-  --muted-foreground: oklch(0.52 0.025 250);
-  --accent: oklch(0.8 0.12 85);
-  --accent-foreground: oklch(0.28 0.05 80);
-  --border: oklch(0.9 0.012 240);
-  --victory: oklch(0.55 0.16 250);
-  --defeat: oklch(0.58 0.22 25);
-  --gold: oklch(0.78 0.13 80);
-  --font-heading: 'Oswald', system-ui, sans-serif;
-
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  color: var(--foreground);
-  background-color: var(--background);
-}
-.lck-root .font-heading { font-family: var(--font-heading); }
-`
-/* ------------------------------------------------------------------ */
-/* App                                                                 */
-/* ------------------------------------------------------------------ */
+import DiaryFormModal from "./components/DiaryFormModal"
 
 export default function App() {
-  return (
-    <div className="lck-root min-h-screen">
-      <style>{themeStyles}</style>
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
- {/* 👑 롤 공홈 스타일: 상단 내비바만 묵직한 딥 네이비로 포인트 주기 */}
-<div className="sticky top-0 z-10 border-b border-[#c8aa6e] bg-[#0a1428] text-[#f0e6d2] shadow-md">
-  <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
-    <div className="flex items-center gap-2">
-      <span className="flex size-7 items-center justify-center rounded-md bg-[#c8aa6e] font-heading text-sm text-[#0a1428] font-black">
-        LCK
-      </span>
-      <span className="font-heading text-lg tracking-tight text-white font-bold">
-        직관 다이어리
-      </span>
-    </div>
-    <span className="hidden text-xs text-[#9e9eb1] sm:block font-medium">
-      나만을 위한 하이라이트 직관 기록
-    </span>
-  </div>
-</div>
+  // 다이어리 원본 데이터 
+  const [diaries, setDiaries] = useState([
+    {
+      id: 1,
+      match: "T1 vs DK",
+      score: "2:1 WIN",
+      location: "롤파크 (LoL PARK)",
+      date: "2026.06.14",
+      content: "2세트 한타에서 역전당할 뻔했는데 미드 갱킹 한 번으로 분위기 완전히 가져왔다. 현장에서 보니까 함성이 진짜 미쳤음. 오늘 직관 온 보람 100%. 페이커 갈리오 궁 들어가는 순간 소름 돋았다 진짜.",
+      pom: "Faker"
+    },
+    {
+      id: 2,
+      match: "T1 vs HLE",
+      score: "2:0 WIN",
+      location: "인스파이어 아레나",
+      date: "2026.06.11",
+      content: "한화생명전 짜릿한 셧아웃 승리! 구마유시 바루스 킬각 잡는 피지컬 보고 입이 떡 벌어졌다. 좌석 시야도 너무 좋았고 직관 전승 신화는 계속된다 후후.",
+      pom: "Gumayusi"
+    }
+  ]);
+
+  // 새로운 일기 추가
+  const handleAddDiary = (newDiaryData: any) => {
+    setDiaries([newDiaryData, ...diaries]); // 맨 앞에 새 일기 꽂기!
+    setIsModalOpen(false); // 창 닫기
+  };
+
+  return (
+    <div className="lck-root min-h-screen relative bg-[#f3f4f6]">
+      <div className="sticky top-0 z-10 border-b border-[#c8aa6e] bg-[#0a1428] text-[#f0e6d2] shadow-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-md bg-[#c8aa6e] font-heading text-sm text-[#0a1428] font-black">
+              LCK
+            </span>
+            <span className="font-heading text-lg tracking-tight text-white font-bold">
+              직관 다이어리
+            </span>
+          </div>
+          <span className="hidden text-xs text-[#9e9eb1] sm:block font-medium">
+            나만을 위한 하이라이트 직관 기록
+          </span>
+        </div>
+      </div>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
         <ProfileHeader />
@@ -65,10 +61,18 @@ export default function App() {
             <SpectateCalendar />
           </div>
           <div className="lg:col-span-3">
-            <DiaryFeed />
+            {/* 자식에게 택배 배송! */}
+            <DiaryFeed diaries={diaries} onOpenModal={() => setIsModalOpen(true)} />
           </div>
         </div>
       </main>
+
+      {/* 모달에게도 onSave 택배 배송! */}
+      <DiaryFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={handleAddDiary} 
+      />
     </div>
   )
 }
