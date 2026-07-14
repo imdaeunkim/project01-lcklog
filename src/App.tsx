@@ -6,6 +6,8 @@ import DiaryFormModal from "./components/DiaryFormModal"
 
 export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [currentYearMonth, setCurrentYearMonth] = useState({ year: 2026, month: 6 });
 
   // 다이어리 원본 데이터 
   const [diaries, setDiaries] = useState([
@@ -29,10 +31,9 @@ export default function App() {
     }
   ]);
 
-  // 새로운 일기 추가
   const handleAddDiary = (newDiaryData: any) => {
-    setDiaries([newDiaryData, ...diaries]); // 맨 앞에 새 일기 꽂기!
-    setIsModalOpen(false); // 창 닫기
+    setDiaries([newDiaryData, ...diaries]);
+    setIsModalOpen(false);
   };
 
   return (
@@ -58,16 +59,26 @@ export default function App() {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <SpectateCalendar />
+            {/* ⚡ [수정] 달력이 일기 데이터를 실시간으로 감시할 수 있도록 diaries를 배송합니다. */}
+            <SpectateCalendar 
+              diaries={diaries}
+              selectedDate={selectedDate} 
+              onSelectDate={setSelectedDate} 
+              currentYearMonth={currentYearMonth}
+              setCurrentYearMonth={setCurrentYearMonth}
+            />
           </div>
           <div className="lg:col-span-3">
-            {/* 자식에게 택배 배송! */}
-            <DiaryFeed diaries={diaries} onOpenModal={() => setIsModalOpen(true)} />
+            <DiaryFeed 
+              diaries={diaries} 
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+              onOpenModal={() => setIsModalOpen(true)} 
+            />
           </div>
         </div>
       </main>
 
-      {/* 모달에게도 onSave 택배 배송! */}
       <DiaryFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
