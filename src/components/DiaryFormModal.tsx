@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Map as MapIcon, Image as ImageIcon, Crosshair } from 'lucide-react';
 import { CHAMPIONS_LIST } from "../data/champions";
 import imgTop from '../assets/positions/top.png';
@@ -13,24 +13,20 @@ interface DiaryFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (diary: any) => void;
+  editingDiary?: any | null; 
 }
 
-// ⚡ 활성화된 슬롯의 위치를 기억할 타입 정의
 interface ActiveSlot {
   gameIndex: number;
   team: 'blue' | 'red';
   boxIndex: number;
 }
 
-export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormModalProps) {
+export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }: DiaryFormModalProps) {
   const [matchFormat, setMatchFormat] = useState<3 | 5>(3);
   const [selectedPosition, setSelectedPosition] = useState<Position>("ALL");
 
-  // 1. ⚡ [핵심 상태] 현재 어떤 + 버튼을 눌러서 픽창을 열었는지 기억 (null이면 닫힌 상태)
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null);
-
-  // 2. ⚡ [핵심 상태] 선택된 챔피언들을 저장할 거대한 객체 상태
-  // 구조 예시: { "game0-blue-1": { name: "아리", imageUrl: "..." } }
   const [selectedChamps, setSelectedChamps] = useState<Record<string, { name: string; imageUrl: string }>>({});
 
   const [date, setDate] = useState('2026-06-18');
@@ -41,6 +37,45 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
   const [content, setContent] = useState('');
   const [pom, setPom] = useState('');
 
+  // 이미지 상태 관리
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [representativeIndex, setRepresentativeIndex] = useState<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 모달 오픈 시 수정/신규 데이터 바인딩
+  useEffect(() => {
+    if (isOpen) {
+      if (editingDiary) {
+        setDate(editingDiary.date.replace(/\./g, '-')); 
+        setMatch(editingDiary.match);
+        setScore(editingDiary.score === "0:0" ? "" : editingDiary.score);
+        setResult(editingDiary.result);
+        setLocation(editingDiary.location === "미지정 장소" ? "" : editingDiary.location);
+        setContent(editingDiary.content);
+        setPom(editingDiary.pom === "미지정" ? "" : editingDiary.pom);
+        setSelectedChamps(editingDiary.pickedChampions || {});
+        setUploadedImages(editingDiary.images || (editingDiary.image ? [editingDiary.image] : []));
+        setRepresentativeIndex(editingDiary.representativeIndex ?? 0);
+      } else {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const d = String(today.getDate()).padStart(2, '0');
+        setDate(`${y}-${m}-${d}`);
+        
+        setMatch('T1 vs DK');
+        setScore('');
+        setResult('WIN');
+        setLocation('');
+        setContent('');
+        setPom('');
+        setSelectedChamps({});
+        setUploadedImages([]);
+        setRepresentativeIndex(0);
+      }
+    }
+  }, [isOpen, editingDiary]);
+
   const filteredChampions = CHAMPIONS_LIST.filter((champ) => {
     if (selectedPosition === "ALL") return true;
     return champ.positions.includes(selectedPosition);
@@ -48,7 +83,48 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
 
   if (!isOpen) return null;
 
-  // 3. ⚡ 챔피언을 선택했을 때 해당 슬롯에 데이터를 매핑하고 창을 닫는 함수
+  // 파일 업로드 처리 (용량 제한 1MB)
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const filesArray = Array.from(files);
+      
+      if (uploadedImages.length + filesArray.length > 5) {
+        alert("사진은 최대 5장까지만 등록할 수 있습니다.");
+        return;
+      }
+
+      filesArray.forEach((file) => {
+        if (file.size > 1 * 1024 * 1024) {
+          alert(`"${file.name}" 사진 용량이 1MB를 초과합니다.`);
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setUploadedImages((prev) => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  // 이미지 삭제 및 대표 인덱스 보정
+  const handleDeleteImage = (indexToRemove: number) => {
+    setUploadedImages((prev) => {
+      const next = prev.filter((_, idx) => idx !== indexToRemove);
+      
+      setRepresentativeIndex((prevRepIdx) => {
+        if (next.length === 0) return 0;
+        if (indexToRemove === prevRepIdx) return 0;
+        if (indexToRemove < prevRepIdx) return prevRepIdx - 1;
+        return prevRepIdx;
+      });
+
+      return next;
+    });
+  };
+
   const handleSelectChampion = (champName: string, imageUrl: string) => {
     if (!activeSlot) return;
     
@@ -59,7 +135,7 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
       [slotKey]: { name: champName, imageUrl }
     }));
 
-    setActiveSlot(null); // 픽 완료 후 팝업 닫기
+    setActiveSlot(null); 
   };
 
   const handleSubmit = () => {
@@ -69,34 +145,32 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
     }
 
     const newDiary = {
-      id: Date.now(),
+      id: editingDiary ? editingDiary.id : Date.now(),
       match: match,
-      score: `${score} ${result}`, 
+      score: score.trim() || "0:0", 
+      result: result,               
       location: location || "미지정 장소",
       date: date.replace(/-/g, '.'),
       content: content,
       pom: pom || "미지정",
-      pickedChampions: selectedChamps // ⚡ 자소서 소스: 밴픽 데이터까지 묶어서 부모로 배송!
+      pickedChampions: selectedChamps,
+      image: uploadedImages[representativeIndex] || null, 
+      images: uploadedImages,
+      representativeIndex: representativeIndex
     };
 
     onSave(newDiary);
-    
-    // 초기화
-    setScore('');
-    setLocation('');
-    setContent('');
-    setPom('');
-    setSelectedChamps({});
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/70 backdrop-blur-sm p-4">
       <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col border-2 border-[#c8aa6e] shadow-2xl relative overflow-hidden">
         
-        {/* 헤더 영역 */}
         <div className="sticky top-0 bg-white border-b border-[#e5e7eb] px-6 py-4 flex justify-between items-start z-10">
           <div className="flex flex-col">
-            <h3 className="text-xl font-black text-[#111111]">새로운 직관 기록 📝</h3>
+            <h3 className="text-xl font-black text-[#111111]">
+              {editingDiary ? "직관 기록 수정" : "새로운 직관 기록"}
+            </h3>
             <input 
               type="date" 
               value={date}
@@ -111,7 +185,6 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
 
         <div className="p-6 overflow-y-auto flex flex-col gap-8 text-[#111111]">
           
-          {/* 경기 기본 정보 */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <h4 className="text-sm font-black text-[#0a1428]">경기 기본 정보</h4>
@@ -156,7 +229,6 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
 
           <hr className="border-[#f3f4f6]" />
 
-{/* 세트별 챔피언 픽 섹션 (화이트 테마 + 슬롯별 개별 포포버 적용) */}
           <section>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -179,7 +251,6 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
                 {Array.from({ length: matchFormat }).map((_, gameIdx) => (
                   <div key={gameIdx} className="flex items-center justify-between bg-white border border-[#e5e7eb] p-2 rounded-md">
                     
-                    {/* 블루팀 슬롯 */}
                     <div className="flex gap-1.5">
                       {[1, 2, 3, 4, 5].map((box) => {
                         const currentKey = `game${gameIdx}-blue-${box}`;
@@ -189,8 +260,8 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
                         return (
                           <div key={`blue-${box}`} className="relative">
                             <button 
+                              type="button"
                               onClick={() => {
-                                // ⚡ 클릭 시 현재 포지션을 항상 '전체'로 세팅하고 픽창 열기!
                                 setSelectedPosition("ALL"); 
                                 setActiveSlot({ gameIndex: gameIdx, team: 'blue', boxIndex: box });
                               }}
@@ -205,12 +276,11 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
                               )}
                             </button>
 
-                            {/* ⚡ 클릭한 블루팀 슬롯 바로 위에 뜨는 미니 화이트 픽창 */}
                             {isCurrentlyActive && (
                               <div className="absolute bottom-12 left-0 w-64 bg-white border-2 border-[#c8aa6e] rounded-xl p-3 shadow-xl z-30 animate-fadeIn">
                                 <div className="flex justify-between items-center mb-2 border-b pb-1">
-                                  <span className="text-[10px] font-black text-[#0a1428]">블루 {box}번 슬롯 선택</span>
-                                  <button onClick={(e) => { e.stopPropagation(); setActiveSlot(null); }} className="text-gray-400 hover:text-black">
+                                  <span className="text-[10px] font-black text-[#0a1428]">블루 {box}번 선택</span>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setActiveSlot(null); }} className="text-gray-400 hover:text-black">
                                     <X className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
@@ -226,7 +296,6 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
                       GAME {gameIdx + 1}
                     </div>
 
-                    {/* 레드팀 슬롯 */}
                     <div className="flex gap-1.5">
                       {[1, 2, 3, 4, 5].map((box) => {
                         const currentKey = `game${gameIdx}-red-${box}`;
@@ -236,8 +305,8 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
                         return (
                           <div key={`red-${box}`} className="relative">
                             <button 
+                              type="button"
                               onClick={() => {
-                                // ⚡ 클릭 시 현재 포지션을 항상 '전체'로 세팅하고 픽창 열기!
                                 setSelectedPosition("ALL"); 
                                 setActiveSlot({ gameIndex: gameIdx, team: 'red', boxIndex: box });
                               }}
@@ -252,12 +321,11 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
                               )}
                             </button>
 
-                            {/* ⚡ 클릭한 레드팀 슬롯 바로 위에 뜨는 미니 화이트 픽창 (오른쪽 정렬) */}
                             {isCurrentlyActive && (
                               <div className="absolute bottom-12 right-0 w-64 bg-white border-2 border-[#c8aa6e] rounded-xl p-3 shadow-xl z-30 animate-fadeIn">
                                 <div className="flex justify-between items-center mb-2 border-b pb-1">
-                                  <span className="text-[10px] font-black text-[#0a1428]">레드 {box}번 슬롯 선택</span>
-                                  <button onClick={(e) => { e.stopPropagation(); setActiveSlot(null); }} className="text-gray-400 hover:text-black">
+                                  <span className="text-[10px] font-black text-[#0a1428]">레드 {box}번 선택</span>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setActiveSlot(null); }} className="text-gray-400 hover:text-black">
                                     <X className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
@@ -278,7 +346,6 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
 
           <hr className="border-[#f3f4f6]" />
 
-          {/* 경기 장소 및 POM */}
           <section>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -294,7 +361,7 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
                     onChange={(e) => setLocation(e.target.value)}
                     className="flex-1 border border-[#d1d5db] rounded-md p-2 text-sm focus:outline-none focus:border-[#c8aa6e]" 
                   />
-                  <button className="bg-[#f3f4f6] border border-[#d1d5db] px-3 rounded-md flex items-center gap-1.5 hover:bg-[#e5e7eb] transition-colors">
+                  <button type="button" className="bg-[#f3f4f6] border border-[#d1d5db] px-3 rounded-md flex items-center gap-1.5 hover:bg-[#e5e7eb] transition-colors">
                     <MapIcon className="w-4 h-4 text-[#4b5563]" />
                     <span className="text-xs font-bold text-[#4b5563]">지도 검색</span>
                   </button>
@@ -322,7 +389,6 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
 
           <hr className="border-[#f3f4f6]" />
 
-          {/* 일기 작성 */}
           <section>
             <div className="flex items-center gap-2 mb-2">
               <h4 className="text-sm font-black text-[#0a1428]">오늘의 직관 일기</h4>
@@ -330,37 +396,105 @@ export default function DiaryFormModal({ isOpen, onClose, onSave }: DiaryFormMod
             </div>
             <textarea 
               rows={5} 
-              placeholder="직관 현장의 분위기, 잊지 못할 한타 명장면 등을 자유롭게 기록해 보세요!" 
+              placeholder="직관 현장 분위기 작성" 
               value={content}
               onChange={(e) => setContent(e.target.value)}
               className="w-full border border-[#d1d5db] rounded-md p-3 text-sm focus:outline-none focus:border-[#c8aa6e] resize-none leading-relaxed"
             ></textarea>
           </section>
 
-          {/* 사진 첨부 */}
+          {/* 이미지 업로드 및 대표 설정 구역 */}
           <section>
             <div className="flex items-center gap-2 mb-2">
               <h4 className="text-sm font-black text-[#0a1428]">현장 사진 첨부</h4>
-              <span className="text-[10px] bg-[#f3f4f6] text-[#6b7280] px-1.5 py-0.5 rounded font-bold">선택</span>
+              <span className="text-[10px] bg-[#f3f4f6] text-[#6b7280] px-1.5 py-0.5 rounded font-bold">
+                선택 ({uploadedImages.length}/5)
+              </span>
             </div>
-            <div className="w-full border-2 border-dashed border-[#d1d5db] rounded-lg p-8 flex flex-col items-center justify-center gap-2 hover:bg-[#f9fafb] hover:border-[#c8aa6e] transition-colors cursor-pointer group">
-              <div className="bg-[#f3f4f6] p-3 rounded-full group-hover:bg-[#f0e6d2] transition-colors">
-                <ImageIcon className="w-6 h-6 text-[#6b7280] group-hover:text-[#c8aa6e]" />
+            
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              accept="image/*" 
+              multiple 
+              onChange={handleImageChange} 
+              className="hidden" 
+            />
+
+            {uploadedImages.length > 0 ? (
+              <div className="grid grid-cols-5 gap-3 p-3 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg">
+                {uploadedImages.map((imgUrl, idx) => {
+                  const isRep = idx === representativeIndex;
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => setRepresentativeIndex(idx)}
+                      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer group shadow-sm
+                        ${isRep 
+                          ? "border-[#c8aa6e] ring-2 ring-[#c8aa6e]/20" 
+                          : "border-transparent hover:border-gray-400"
+                        }`}
+                    >
+                      <img src={imgUrl} alt={`업로드 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                      
+                      {isRep ? (
+                        <span className="absolute top-1 left-1 bg-[#c8aa6e] text-[#0a1428] text-[8px] font-black px-1.5 py-0.5 rounded border border-[#0a1428] z-10">
+                          대표
+                        </span>
+                      ) : (
+                        <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <span className="text-[9px] text-white font-black bg-black/60 px-1.5 py-1 rounded">대표 설정</span>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation(); 
+                          handleDeleteImage(idx);
+                        }}
+                        className="absolute top-1 right-1 bg-black/70 hover:bg-[#d93846] text-white p-1 rounded-full transition-colors z-20"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+                
+                {uploadedImages.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="aspect-square border-2 border-dashed border-[#d1d5db] hover:border-[#c8aa6e] rounded-lg flex flex-col items-center justify-center gap-1 bg-white hover:bg-gray-50 transition-colors group"
+                  >
+                    <PlusIcon className="w-5 h-5 text-gray-400 group-hover:text-[#c8aa6e]" />
+                    <span className="text-[9px] font-bold text-gray-400 group-hover:text-[#c8aa6e]">추가</span>
+                  </button>
+                )}
               </div>
-              <p className="text-sm font-bold text-[#6b7280]">클릭하거나 이미지를 드래그하여 업로드</p>
-              <p className="text-xs text-[#9ca3af]">선수 사진, 티켓 인증샷 등 (최대 3장)</p>
-            </div>
+            ) : (
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full border-2 border-dashed border-[#d1d5db] rounded-lg p-8 flex flex-col items-center justify-center gap-2 hover:bg-[#f9fafb] hover:border-[#c8aa6e] transition-colors cursor-pointer group"
+              >
+                <div className="bg-[#f3f4f6] p-3 rounded-full group-hover:bg-[#f0e6d2] transition-colors">
+                  <ImageIcon className="w-6 h-6 text-[#6b7280] group-hover:text-[#c8aa6e]" />
+                </div>
+                <p className="text-sm font-bold text-[#6b7280] group-hover:text-[#c8aa6e]">현장 사진 첨부</p>
+                <p className="text-xs text-[#9ca3af]">최대 5장 (장당 1MB 이하)</p>
+              </div>
+            )}
           </section>
 
         </div>
 
-        {/* 푸터 영역 */}
         <div className="sticky bottom-0 bg-white border-t border-[#e5e7eb] p-4 z-10">
           <button 
+            type="button"
             onClick={handleSubmit} 
             className="w-full bg-[#0a1428] text-[#f0e6d2] py-3.5 rounded-lg font-black hover:bg-[#121c2c] transition-colors border border-[#c8aa6e] shadow-md flex justify-center items-center gap-2"
           >
-            다이어리에 기록 남기기
+            {editingDiary ? "기록 수정 완료" : "다이어리에 기록 남기기"}
           </button>
         </div>
 
@@ -378,7 +512,6 @@ function PlusIcon({ className }: { className?: string }) {
   );
 }
 
-// ⚡ 화이트 테마용 미니 챔피언 셀렉터 컴포넌트 (모달 파일 하단에 배치)
 function ChampionPickerSelect({ 
   onSelect, 
   filteredChampions, 
@@ -392,7 +525,6 @@ function ChampionPickerSelect({
 }) {
   return (
     <div>
-      {/* 화이트 테마형 라인 탭 */}
       <div className="flex justify-center gap-1.5 mb-2 bg-[#f3f4f6] p-1.5 rounded-lg border border-gray-200">
         {([
           { id: "ALL", label: "전체", url: null },
@@ -421,7 +553,6 @@ function ChampionPickerSelect({
         ))}
       </div>
 
-      {/* 챔피언 그리드 */}
       <div className="grid grid-cols-4 gap-1.5 max-h-32 overflow-y-auto p-1.5 bg-[#f9fafb] border border-gray-100 rounded-lg">
         {filteredChampions.map((champ) => (
           <button

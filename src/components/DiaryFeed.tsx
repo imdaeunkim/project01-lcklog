@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Trophy, Plus, MessageSquare, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, Trophy, Plus, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface DiaryFeedProps {
   diaries: Array<{
@@ -10,15 +10,20 @@ interface DiaryFeedProps {
     date: string;
     content: string;
     pom: string;
-    pickedChampions?: Record<string, { name: string; imageUrl: string }>; // 밴픽 데이터
+    image?: string; 
+    images?: string[]; 
+    representativeIndex?: number;
+    pickedChampions?: Record<string, { name: string; imageUrl: string }>; 
   }>;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   onOpenModal: () => void;
+  onEdit: (diary: any) => void;
 }
 
-export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenModal }: DiaryFeedProps) {
+export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenModal, onEdit }: DiaryFeedProps) {
   const [expandedId, setExpandedId] = useState<number | null>(1); 
+  const [activeImagePopup, setActiveImagePopup] = useState<string | null>(null);
 
   const filteredDiaries = diaries.filter(diary => {
     if (!selectedDate) return true;
@@ -37,8 +42,6 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
     setExpandedId(expandedId === id ? null : id);
   };
 
-  // ⚡ [유틸 함수] 해당 일기에 몇 세트까지 챔피언 데이터가 존재하는지 알아내는 함수
-  // "game0-", "game1-", "game2-" 등으로 저장된 키의 개수를 기반으로 세트 수를 파악합니다.
   const getGameCount = (pickedChamps?: Record<string, any>) => {
     if (!pickedChamps) return 0;
     const keys = Object.keys(pickedChamps);
@@ -50,13 +53,12 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
         if (idx > maxGameIdx) maxGameIdx = idx;
       }
     });
-    return maxGameIdx + 1; // 0부터 시작하므로 +1 해서 게임 세트 수 반환 (예: maxGameIdx가 2면 3세트 경기)
+    return maxGameIdx + 1; 
   };
 
   return (
     <div className="w-full text-[#111111] relative">
       
-      {/* 피드 헤더 */}
       <div className="flex items-center justify-between border-b border-[#d1d5db] pb-4 mb-6">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-[#c8aa6e]" />
@@ -77,12 +79,15 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
         </div>
       </div>
 
-      {/* 일기 리스트 구역 */}
       <div className="flex flex-col gap-4">
         {filteredDiaries.length > 0 ? (
           filteredDiaries.map((diary) => {
             const isExpanded = expandedId === diary.id;
-            const gameCount = getGameCount(diary.pickedChampions); // ⚡ 세트 수 계산 (1세트 ~ 5세트)
+            const gameCount = getGameCount(diary.pickedChampions); 
+
+            const repIdx = diary.representativeIndex ?? 0;
+            const hasImages = diary.images && diary.images.length > 0;
+            const repImage = hasImages ? diary.images?.[repIdx] : diary.image;
 
             return (
               <div 
@@ -93,16 +98,22 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                     : "border-[#d1d5db] hover:border-[#9ca3af]" 
                   }`}
               >
-                {/* 1. 상단 카드 정보 영역 */}
                 <div 
                   onClick={() => handleCardClick(diary.id)}
                   className="p-5 flex gap-5 items-start cursor-pointer select-none"
                 >
                   <div className="shrink-0">
                     <img 
-                      src="https://placehold.co/180x180/f3f4f6/a7aaaf?text=MATCH+PHOTO" 
+                      src={repImage || "https://placehold.co/180x180/f3f4f6/a7aaaf?text=MATCH+PHOTO"} 
                       alt="경기 스크린샷" 
-                      className="w-28 h-28 rounded-lg border border-[#e5e7eb] object-cover"
+                      className={`w-28 h-28 rounded-lg border border-[#e5e7eb] object-cover transition-transform duration-300
+                        ${repImage ? 'cursor-zoom-in hover:scale-[1.02]' : ''}`}
+                      onClick={(e) => {
+                        if (repImage) {
+                          e.stopPropagation(); 
+                          setActiveImagePopup(repImage); 
+                        }
+                      }}
                     />
                   </div>
 
@@ -136,18 +147,15 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                   </div>
                 </div>
 
-                {/* 2. ⚡ [대변혁] 세트별로 줄바꿈(bo3/bo5)되어 나타나는 밴픽 전적판 */}
                 {isExpanded && (
                   <div className="bg-[#f8f9fa] border-t border-[#e5e7eb] p-5 animate-slideDown flex flex-col gap-4">
                     
                     {gameCount > 0 ? (
-                      // ⚡ 세트 수만큼 줄바꿈 맵핑 시작!
                       Array.from({ length: gameCount }).map((_, gameIdx) => (
                         <div 
                           key={`game-row-${gameIdx}`} 
                           className="bg-white border border-[#e5e7eb] rounded-xl p-3 shadow-sm flex items-center justify-between gap-2"
                         >
-                          {/* 🔵 블루팀 5명 가로 정렬 */}
                           <div className="flex gap-1">
                             {[1, 2, 3, 4, 5].map((box) => {
                               const slotKey = `game${gameIdx}-blue-${box}`;
@@ -169,12 +177,10 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                             })}
                           </div>
 
-                          {/* 🎯 가운데 게임 세트 뱃지 */}
                           <div className="text-[10px] font-black bg-[#0a1428] text-[#f0e6d2] px-2.5 py-1 rounded-md shrink-0 shadow-sm">
                             GAME {gameIdx + 1}
                           </div>
 
-                          {/* 🔴 레드팀 5명 가로 정렬 */}
                           <div className="flex gap-1">
                             {[1, 2, 3, 4, 5].map((box) => {
                               const slotKey = `game${gameIdx}-red-${box}`;
@@ -199,16 +205,65 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                         </div>
                       ))
                     ) : (
-                      // 챔피언 데이터가 없을 때 띄워줄 예외 처리
                       <div className="text-center py-4 text-xs font-bold text-gray-400 bg-white border rounded-xl">
                         기록된 챔피언 밴픽 정보가 없습니다.
                       </div>
                     )}
 
-                    {/* 추가 정보 피드백 공간 */}
-                    <div className="text-xs text-gray-500 font-medium bg-[#f9fafb] border p-3 rounded-lg flex flex-col gap-1">
-                     
-                      <div className="mt-1 leading-relaxed">📝 <strong className="text-gray-700">전체 소감:</strong> {diary.content}</div>
+                    <div className="text-xs text-gray-500 font-medium bg-[#f9fafb] border p-4 rounded-lg flex flex-col gap-1">
+                      <div className="leading-relaxed">📝 <strong className="text-gray-700">전체 소감:</strong> {diary.content}</div>
+                      
+                      {/* 이미지 슬라이더 갤러리 */}
+                      {diary.images && diary.images.length > 0 && (
+                        <div className="mt-4 border-t border-gray-200/60 pt-3">
+                          <span className="text-[10px] font-bold text-[#6b7280] block mb-2">📸 직관 현장 갤러리</span>
+                          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-200">
+                            {diary.images.map((imgUrl, idx) => {
+                              const isRep = idx === repIdx;
+                              return (
+                                <div 
+                                  key={idx} 
+                                  className={`w-24 h-24 rounded-lg overflow-hidden shrink-0 shadow-sm transition-all relative group cursor-pointer border-2
+                                    ${isRep 
+                                      ? "border-[#c8aa6e] ring-2 ring-[#c8aa6e]/20" 
+                                      : "border-[#e5e7eb] hover:border-gray-400"
+                                    }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation(); 
+                                    setActiveImagePopup(imgUrl); 
+                                  }}
+                                >
+                                  <img 
+                                    src={imgUrl} 
+                                    alt={`현장 사진 ${idx + 1}`} 
+                                    className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" 
+                                  />
+                                  {isRep && (
+                                    <span className="absolute bottom-1 right-1 bg-[#c8aa6e] text-[#0a1428] text-[8px] font-black px-1.5 py-0.5 rounded border border-[#0a1428]">
+                                      대표
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 수정 버튼 */}
+                      <div className="flex justify-end mt-4 pt-3 border-t border-gray-200/60">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation(); 
+                            onEdit(diary);       
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-black bg-[#0a1428] hover:bg-[#121c2c] text-[#f0e6d2] px-3.5 py-1.5 rounded-lg border border-[#c8aa6e] transition-all hover:scale-105 active:scale-[0.98] shadow-sm"
+                        >
+                          🔧 기록 수정
+                        </button>
+                      </div>
+
                     </div>
 
                   </div>
@@ -232,7 +287,6 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
         )}
       </div>
 
-      {/* 우측 하단 플로팅 버튼 */}
       <button
         onClick={onOpenModal} 
         className="fixed bottom-8 right-8 z-50 bg-[#0a1428] hover:bg-[#121c2c] text-[#f0e6d2] p-4 rounded-full shadow-2xl transition-transform hover:scale-110 border-2 border-[#c8aa6e]"
@@ -240,6 +294,31 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
       >
         <Plus className="w-6 h-6 stroke-[3]" />
       </button>
+
+      {/* 이미지 라이트박스 팝업 */}
+      {activeImagePopup && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 cursor-zoom-out animate-fadeIn"
+          onClick={() => setActiveImagePopup(null)} 
+        >
+          <div className="relative max-w-4xl max-h-[90vh] flex items-center justify-center">
+            <button 
+              type="button"
+              onClick={() => setActiveImagePopup(null)}
+              className="absolute -top-12 right-0 text-white hover:text-[#c8aa6e] transition-colors p-1"
+            >
+              <X className="w-8 h-8 stroke-[2.5]" />
+            </button>
+            
+            <img 
+              src={activeImagePopup} 
+              alt="직관 사진 원본" 
+              className="max-w-full max-h-[82vh] rounded-lg object-contain shadow-2xl border border-white/10 cursor-default"
+              onClick={(e) => e.stopPropagation()} 
+            />
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -6,11 +6,12 @@ interface SpectateCalendarProps {
     id: number;
     match: string;
     score: string;
+    result: string; // ⚡ result 타입 추가
     location: string;
     date: string;
     content: string;
     pom: string;
-  }>; // ⚡ 추가됨
+  }>;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   currentYearMonth: { year: number; month: number };
@@ -27,14 +28,12 @@ export default function SpectateCalendar({
   
   const { year, month } = currentYearMonth;
 
-  // ⚡ 달의 총 일수 및 시작 요일 계산 함수
   const getDaysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
   const getFirstDayOfWeek = (y: number, m: number) => new Date(y, m - 1, 1).getDay();
 
   const totalDays = getDaysInMonth(year, month);
   const startBlankCells = getFirstDayOfWeek(year, month);
 
-  // ⚡ [월 이동 핸들러] 이동 시 선택 필터 초기화
   const handlePrevMonth = () => {
     onSelectDate(null);
     setCurrentYearMonth(prev => {
@@ -51,7 +50,6 @@ export default function SpectateCalendar({
     });
   };
 
-  // ⚡ [날짜 클릭 핸들러]
   const handleDateClick = (dayNum: number) => {
     const formattedMonth = month < 10 ? `0${month}` : `${month}`;
     const formattedDay = dayNum < 10 ? `0${dayNum}` : `${dayNum}`;
@@ -71,69 +69,52 @@ export default function SpectateCalendar({
   return (
     <div className="w-full bg-white text-[#111111] p-6 rounded-xl border border-[#d1d5db] shadow-sm">
       
-      {/* ⚡ 다은 님이 원하신 "심플하고 직관적인 원래 레이아웃 고수" 헤더 구역 */}
+      {/* 캘린더 헤더 */}
       <div className="flex items-center justify-between border-b border-[#e5e7eb] pb-4 mb-4">
         <div className="flex items-center gap-2">
           <Calendar className="w-5 h-5 text-[#c8aa6e]" />
           <h2 className="text-lg font-black tracking-wide text-[#111111]">직관 전적 캘린더</h2>
         </div>
         
-        {/* 👈 👉 연/월 내비게이터 바 */}
         <div className="flex items-center justify-center gap-6 py-1 bg-transparent">
-          <button 
-            onClick={handlePrevMonth} 
-            className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-600"
-          >
+          <button onClick={handlePrevMonth} className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-600">
             <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
           </button>
-          
           <span className="text-base font-black text-[#0a1428] min-w-[100px] text-center tracking-wider">
             {year} . {month < 10 ? `0${month}` : month}
           </span>
-          
-          <button 
-            onClick={handleNextMonth} 
-            className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-600"
-          >
+          <button onClick={handleNextMonth} className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-600">
             <ChevronRight className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
       </div>
 
-      {/* 요일 행 */}
+      {/* 요일 */}
       <div className="grid grid-cols-7 gap-1 text-center mb-2">
         {weekDays.map((day, index) => (
-          <span 
-            key={day} 
-            className={`text-xs font-bold py-1 ${
-              index === 0 ? "text-[#e84057]" : index === 6 ? "text-[#38bdf8]" : "text-[#6b7280]"
-            }`}
-          >
+          <span key={day} className={`text-xs font-bold py-1 ${index === 0 ? "text-[#e84057]" : index === 6 ? "text-[#38bdf8]" : "text-[#6b7280]"}`}>
             {day}
           </span>
         ))}
       </div>
 
-      {/* 날짜 그리드판 */}
+      {/* 날짜 판 */}
       <div className="grid grid-cols-7 gap-1.5">
-        {/* 시작 빈칸 */}
         {blankCellsArray.map((_, index) => (
           <div key={`blank-${index}`} className="min-h-[70px] bg-transparent border border-transparent"></div>
         ))}
 
-        {/* 실제 일수 그리기 */}
         {daysArray.map((dayNum) => {
           const formattedMonth = month < 10 ? `0${month}` : `${month}`;
           const formattedDay = dayNum < 10 ? `0${dayNum}` : `${dayNum}`;
           const currentDayStr = `${year}.${formattedMonth}.${formattedDay}`;
           const isSelected = selectedDate === currentDayStr;
 
-          // ⚡ [대변혁] 다은 님이 작성한 diaries 배열에서 이 날짜와 일치하는 일기가 있는지 실시간 검색!
           const matchedDiary = diaries.find(d => d.date === currentDayStr);
 
-          // 일기 score 텍스트 안에 'WIN'이 있으면 승리, 'LOSE'가 있으면 패배로 판별합니다.
-          const isWin = matchedDiary?.score.includes('WIN');
-          const isLose = matchedDiary?.score.includes('LOSE');
+          // ⚡ d.result 속성이 "WIN"인지 "LOSE"인지 정확히 확인!
+          const isWin = matchedDiary?.result === 'WIN';
+          const isLose = matchedDiary?.result === 'LOSE';
 
           return (
             <div 
@@ -149,21 +130,19 @@ export default function SpectateCalendar({
                 {dayNum}
               </span>
               
-              {/* ⚡ 실시간으로 찾은 일기 결과에 맞춰 캘린더 칸에 뱃지 마크업 */}
               {matchedDiary && (
                 <div className="w-full flex flex-col gap-0.5 mt-1">
                   {isWin ? (
                     <div className="bg-[#ecf2ff] border border-[#b3ccff] rounded px-1 py-0.5 text-center">
                       <span className="text-[9px] font-black text-[#2255cc] block leading-none">W · vs {matchedDiary.match.split('vs')[1]}</span>
-                      <span className="text-[8px] text-[#4477ee] block font-bold mt-0.5">{matchedDiary.score.split(' ')[0]}</span>
+                      <span className="text-[8px] text-[#4477ee] block font-bold mt-0.5">{matchedDiary.score}</span>
                     </div>
                   ) : isLose ? (
                     <div className="bg-[#fff0f2] border border-[#ffd0d6] rounded px-1 py-0.5 text-center">
                       <span className="text-[9px] font-black text-[#d93846] block leading-none">L · vs {matchedDiary.match.split('vs')[1]}</span>
-                      <span className="text-[8px] text-[#e05260] block font-bold mt-0.5">{matchedDiary.score.split(' ')[0]}</span>
+                      <span className="text-[8px] text-[#e05260] block font-bold mt-0.5">{matchedDiary.score}</span>
                     </div>
                   ) : (
-                    // WIN/LOSE 판별이 안 되는 기타 상태 처리용
                     <div className="bg-[#f3f4f6] border border-[#e5e7eb] rounded px-1 py-0.5 text-center">
                       <span className="text-[9px] font-bold text-[#6b7280] block leading-none">{matchedDiary.match}</span>
                     </div>
@@ -175,19 +154,33 @@ export default function SpectateCalendar({
         })}
       </div>
 
-      {/* 하단 요정 지수 구역 */}
+      {/* ⚡ 하단 요정 지수 구역 (`result` 연동 버전) */}
       <div className="mt-6 pt-5 border-t border-[#e5e7eb]">
         <div className="flex items-end justify-between mb-2">
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-[#6b7280]">승리 요정 지수 🧚‍♀️</span>
-            <span className="text-[10px] bg-[#f3f4f6] text-[#9ca3af] px-1.5 py-0.5 rounded font-bold">총 5전 3승</span>
+            <span className="text-[10px] bg-[#f3f4f6] text-[#9ca3af] px-1.5 py-0.5 rounded font-bold">
+              총 {diaries.length}전 {diaries.filter(d => d.result === 'WIN').length}승
+            </span>
           </div>
-          <span className="text-sm font-black text-[#2255cc]">60%</span>
+          <span className="text-sm font-black text-[#2255cc]">
+            {diaries.length > 0 ? Math.floor((diaries.filter(d => d.result === 'WIN').length / diaries.length) * 100) : 0}%
+          </span>
         </div>
 
         <div className="w-full h-2.5 bg-[#f3f4f6] rounded-full overflow-hidden flex border border-[#e5e7eb] shadow-inner">
-          <div className="h-full bg-[#2255cc] transition-all duration-700 ease-out" style={{ width: '60%' }}></div>
-          <div className="h-full bg-[#e05260] transition-all duration-700 ease-out opacity-80" style={{ width: '40%' }}></div>
+          <div 
+            className="h-full bg-[#2255cc] transition-all duration-700 ease-out" 
+            style={{ 
+              width: `${diaries.length > 0 ? (diaries.filter(d => d.result === 'WIN').length / diaries.length) * 100 : 0}%` 
+            }}
+          ></div>
+          <div 
+            className="h-full bg-[#e05260] transition-all duration-700 ease-out opacity-80" 
+            style={{ 
+              width: `${diaries.length > 0 ? (diaries.filter(d => d.result === 'LOSE').length / diaries.length) * 100 : 0}%` 
+            }}
+          ></div>
         </div>
 
         <div className="flex justify-between mt-2 text-[10px] font-bold text-[#9ca3af]">
