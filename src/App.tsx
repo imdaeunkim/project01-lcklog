@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { Diary } from './types/diary';
 import ProfileHeader from "./components/ProfileHeader";
 import SpectateCalendar from "./components/SpectateCalendar";
 import DiaryFeed from "./components/DiaryFeed";
@@ -8,11 +9,9 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [currentYearMonth, setCurrentYearMonth] = useState({ year: 2026, month: 6 });
-
-  // ⚡ [수정 기능 핵심] 현재 수정 중인 일기 객체 보존 (신규 작성 시엔 null)
-  const [editingDiary, setEditingDiary] = useState<any | null>(null);
-
-  const [diaries, setDiaries] = useState<any[]>(() => {
+  const [editingDiary, setEditingDiary] = useState<Diary | null>(null);
+  // diary 초기값 세팅
+  const [diaries, setDiaries] = useState<Diary[]>(() => {
     const savedDiaries = localStorage.getItem('lol-diaries');
     if (savedDiaries) {
       try {
@@ -21,6 +20,7 @@ export default function App() {
         console.error("데이터 로드 중 에러 발생:", e);
       }
     }
+    //dummy data 
     return [
       {
         id: 1,
@@ -51,28 +51,29 @@ export default function App() {
     localStorage.setItem('lol-diaries', JSON.stringify(diaries));
   }, [diaries]);
 
-  // ⚡ [수정 기능 핵심] 수정 버튼 클릭 시 모달을 수정 모드로 오픈하는 함수
+  // 수정 버튼 클릭 시 모달을 수정 모드로 오픈하는 함수
   const handleOpenEditModal = (diary: any) => {
-    setEditingDiary(diary); // 수정할 데이터를 킵하고
-    setIsModalOpen(true);    // 모달 활성화!
+    setEditingDiary(diary); 
+    setIsModalOpen(true);   
   };
 
-  // ⚡ [수정 기능 핵심] 저장 버튼 클릭 시 (신규 추가와 수정을 동시에 판별해 저장)
+  // 저장 버튼 클릭 시
   const handleSaveDiary = (diaryData: any) => {
     if (editingDiary) {
-      // 🔧 수정 모드: diaries 배열을 순회하며 기존 ID와 같은 항목을 새 데이터로 교체!
+      // 수정 
       setDiaries(diaries.map(d => d.id === editingDiary.id ? diaryData : d));
     } else {
-      // 🆕 신규 작성 모드: 리스트 맨 앞에 추가
+      // 신규 작성 
       setDiaries([diaryData, ...diaries]);
     }
     setIsModalOpen(false);
-    setEditingDiary(null); // 수정 상태 초기화!
+    setEditingDiary(null); // 수정 상태 초기화
   };
 
+  //모달 닫을 시 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setEditingDiary(null); // 모달이 닫힐 때도 수정 상태 깨끗이 지우기!
+    setEditingDiary(null); 
   };
 
   return (
@@ -92,7 +93,7 @@ export default function App() {
           </span>
         </div>
       </div>
-
+      
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
         <ProfileHeader diaries={diaries} />
 
@@ -112,7 +113,7 @@ export default function App() {
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
               onOpenModal={() => setIsModalOpen(true)} 
-              onEdit={handleOpenEditModal} // ⚡ 수정 트리거 배달!
+              onEdit={handleOpenEditModal} 
             />
           </div>
         </div>
@@ -122,7 +123,7 @@ export default function App() {
         isOpen={isModalOpen} 
         onClose={handleCloseModal} 
         onSave={handleSaveDiary} 
-        editingDiary={editingDiary} // ⚡ 수정 중인 데이터 전달!
+        editingDiary={editingDiary}
       />
     </div>
   );

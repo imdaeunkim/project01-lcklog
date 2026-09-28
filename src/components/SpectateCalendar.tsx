@@ -1,22 +1,13 @@
 import React from 'react';
+import type { Diary } from '../types/diary'; 
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SpectateCalendarProps {
-  diaries: Array<{
-    id: number;
-    match: string;
-    score: string;
-    result: string; // ⚡ result 타입 추가
-    location: string;
-    date: string;
-    content: string;
-    pom: string;
-  }>;
+  diaries: Diary[]; 
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   currentYearMonth: { year: number; month: number };
-  setCurrentYearMonth: React.Dispatch<React.SetStateAction<{ year: number; month: number }>>;
-}
+  setCurrentYearMonth: React.Dispatch<React.SetStateAction<{ year: number; month: number }>>;}
 
 export default function SpectateCalendar({ 
   diaries,
@@ -72,19 +63,19 @@ export default function SpectateCalendar({
       {/* 캘린더 헤더 */}
       <div className="flex items-center justify-between border-b border-[#e5e7eb] pb-4 mb-4">
         <div className="flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-[#c8aa6e]" />
+          <Calendar className="size-5 text-[#c8aa6e]" />
           <h2 className="text-lg font-black tracking-wide text-[#111111]">직관 전적 캘린더</h2>
         </div>
         
         <div className="flex items-center justify-center gap-6 py-1 bg-transparent">
           <button onClick={handlePrevMonth} className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-600">
-            <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+            <ChevronLeft className="size-4 stroke-[2.5]" />
           </button>
           <span className="text-base font-black text-[#0a1428] min-w-[100px] text-center tracking-wider">
             {year} . {month < 10 ? `0${month}` : month}
           </span>
           <button onClick={handleNextMonth} className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-600">
-            <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+            <ChevronRight className="size-4 stroke-[2.5]" />
           </button>
         </div>
       </div>
@@ -112,7 +103,6 @@ export default function SpectateCalendar({
 
           const matchedDiary = diaries.find(d => d.date === currentDayStr);
 
-          // ⚡ d.result 속성이 "WIN"인지 "LOSE"인지 정확히 확인!
           const isWin = matchedDiary?.result === 'WIN';
           const isLose = matchedDiary?.result === 'LOSE';
 
@@ -154,11 +144,11 @@ export default function SpectateCalendar({
         })}
       </div>
 
-      {/* ⚡ 하단 요정 지수 구역 (`result` 연동 버전) */}
+      {/*하단 직관 통계 */}
       <div className="mt-6 pt-5 border-t border-[#e5e7eb]">
         <div className="flex items-end justify-between mb-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-[#6b7280]">승리 요정 지수 🧚‍♀️</span>
+            <span className="text-xs font-bold text-[#6b7280]">승요 지수 🧚‍♀️</span>
             <span className="text-[10px] bg-[#f3f4f6] text-[#9ca3af] px-1.5 py-0.5 rounded font-bold">
               총 {diaries.length}전 {diaries.filter(d => d.result === 'WIN').length}승
             </span>

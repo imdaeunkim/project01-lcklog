@@ -23,7 +23,7 @@ interface ActiveSlot {
 }
 
 export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }: DiaryFormModalProps) {
-  const [matchFormat, setMatchFormat] = useState<3 | 5>(3);
+  const [matchFormat, setMatchFormat] = useState<1 | 3 | 5>(3);
   const [selectedPosition, setSelectedPosition] = useState<Position>("ALL");
 
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null);

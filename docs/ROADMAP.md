@@ -8,6 +8,8 @@
 ## 다음 세션 메모
 - S0에서 `.claude/settings.json`에 `defaultMode: plan`을 넣었다. 새 세션이 플랜 모드로 시작하는지 확인하고 결과를 여기에 적는다.
 - S1 lint 에러 현황(S0 시점): 15개 에러, 1개 경고. `any` 사용, effect 안에서 setState 호출, ProfileHeader의 사용하지 않는 대입.
+- 사용자가 `src/types/diary.ts`(`Diary` 인터페이스)를 먼저 만들고 App, DiaryFeed, SpectateCalendar, ProfileHeader에 적용했다. S1은 새 파일을 만들지 말고 이 파일을 확장한다. 남은 작업: `result?`가 선택값인 문제, App의 `handleOpenEditModal`/`handleSaveDiary`와 DiaryFormModal Props에 남은 `any`.
+- 티어 아이콘(`src/assets/tiers/`)은 144×144px로 축소해 두었다(표시 크기 36px). 새 이미지를 추가할 때도 표시 크기의 4배 이하로 줄여서 넣는다.
 
 ---
 
