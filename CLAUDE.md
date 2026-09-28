@@ -23,6 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Git과 검증
 - main/master에 직접 commit하거나 push하지 않는다. 강제 push도 하지 않는다. (`.claude/hooks/guard-git.mjs`가 차단한다)
 - 커밋 전에 `npm run build`를 통과해야 한다. (Hook이 commit 직전에 자동 실행한다) lint는 S1 완료 후부터 필수로 한다.
+- 사용자가 VS Code에서 직접 수정할 때도 main 동기화 → 새 브랜치 → 커밋·push → PR 순서를 따른다.
 - 커밋 메시지는 `feat:` / `fix:` / `docs:` / `chore:` / `refactor:` + 한국어 요약으로 쓴다.
 - PR 설명은 `무엇을 바꿨나 / 왜 / 어떻게 확인했나` 3개 섹션으로 쓴다.
 - 코드를 바꾼 PR은 사용자가 "왜" 섹션을 직접 작성한다. Claude는 초안에 `(사용자 작성)` 자리표시자만 두고, 사용자가 이해하지 못한 부분을 물어보면 설명한다. 설정이나 문서만 바꾼 PR은 Claude 초안 그대로 두어도 된다.
@@ -53,7 +54,7 @@ npm run preview    # 빌드 결과물 미리보기
 - 승률, 전적 같은 통계는 `ProfileHeader`와 `SpectateCalendar`가 `diaries`에서 매번 직접 계산한다. 저장해두는 집계값은 없다.
 
 ### Diary 객체 형태 (DiaryFormModal.handleSubmit 기준)
-공유 타입 파일은 없다. `diary`는 대부분 `any`로 다루고, 각 컴포넌트가 필요한 필드만 자기 Props 인터페이스에 따로 선언한다. 필드를 추가하거나 바꿀 때는 App.tsx, DiaryFormModal, DiaryFeed, SpectateCalendar, ProfileHeader를 모두 확인해야 한다.
+공통 타입은 `src/types/diary.ts`의 `Diary` 인터페이스다. App, DiaryFeed, SpectateCalendar, ProfileHeader가 이 타입을 쓴다. DiaryFormModal의 Props와 App의 일부 핸들러에는 아직 `any`가 남아 있다(S1에서 정리). 필드를 추가하거나 바꿀 때는 `Diary` 타입과 DiaryFormModal의 `handleSubmit`을 함께 고친다.
 
 - `id`: `Date.now()`
 - `date`: **`"YYYY.MM.DD"` 문자열**(점 구분). `<input type="date">`는 `YYYY-MM-DD`를 쓰므로 모달이 로드하고 저장할 때 서로 변환한다. 캘린더와 피드의 날짜 비교도 점 구분 형식에 의존한다.

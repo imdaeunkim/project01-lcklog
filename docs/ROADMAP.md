@@ -3,12 +3,15 @@
 진행 규칙은 `CLAUDE.md`의 "작업 규칙"을 따른다. 한 세션에서는 한 단계만 진행한다.
 목표: 10월 초에 웹 1차 완성과 배포(S0~S3), 이후 S4~S7.
 
-## 현재 단계: S1 (S0 PR 머지 후)
+## 현재 단계: S1
 
 ## 다음 세션 메모
 - S0에서 `.claude/settings.json`에 `defaultMode: plan`을 넣었다. 새 세션이 플랜 모드로 시작하는지 확인하고 결과를 여기에 적는다.
-- S1 lint 에러 현황(S0 시점): 15개 에러, 1개 경고. `any` 사용, effect 안에서 setState 호출, ProfileHeader의 사용하지 않는 대입.
-- 사용자가 `src/types/diary.ts`(`Diary` 인터페이스)를 먼저 만들고 App, DiaryFeed, SpectateCalendar, ProfileHeader에 적용했다. S1은 새 파일을 만들지 말고 이 파일을 확장한다. 남은 작업: `result?`가 선택값인 문제, App의 `handleOpenEditModal`/`handleSaveDiary`와 DiaryFormModal Props에 남은 `any`.
+- lint 현황(9/28, PR #2 머지 후): 에러 12개, 경고 1개
+  - `no-explicit-any` 7개: App.tsx(`handleOpenEditModal`, `handleSaveDiary`), DiaryFormModal.tsx(Props 2개, `ChampionPickerSelect`의 `filteredChampions`와 `url`), DiaryFeed.tsx(`getGameCount`)
+  - `set-state-in-effect` 2개: DiaryFeed와 DiaryFormModal의 useEffect
+  - `no-useless-assignment` 3개: ProfileHeader의 `tierName`/`tierIcon`/`tierColor` 초기값
+  - `exhaustive-deps` 경고 1개: DiaryFeed useEffect
 - 티어 아이콘(`src/assets/tiers/`)은 144×144px로 축소해 두었다(표시 크기 36px). 새 이미지를 추가할 때도 표시 크기의 4배 이하로 줄여서 넣는다.
 
 ---
@@ -16,15 +19,20 @@
 ## S0. 작업 환경 세팅 ✅
 - [x] 빌드 에러 수정 (미사용 React import 제거)
 - [x] CLAUDE.md 작업 규칙, ROADMAP, Hook(guard-git), CI(빌드)
-- [ ] (사용자) PR 머지 → Vercel에 연결해서 배포 URL 확보
+- [x] PR 머지 (PR #1)
+- [x] (사용자) Vercel 연결 (PR #2에서 Vercel 체크 확인)
+- [ ] (사용자) 배포 URL이 실제로 열리는지 확인
+- [x] (사용자, S0 이후 추가 작업) 공통 타입 `src/types/diary.ts`, 티어 이미지, 디자인 정리 (PR #2)
 - [ ] (사용자, 선택) GitHub에서 main 브랜치 보호 + CI 통과 필수 설정
 
-## S1. 타입 정리와 lint 0
-- [ ] `src/types.ts` 생성: `Diary`, `PickedChampions`, `MatchResult` 등
-- [ ] 모든 컴포넌트의 `any`와 중복된 Props 타입을 `types.ts`로 교체
+## S1. 타입 정리와 lint 0 (범위 축소: 타입 파일은 PR #2에서 생성됨)
+- [x] `src/types/diary.ts` 생성, App/DiaryFeed/SpectateCalendar/ProfileHeader에 적용 (사용자, PR #2)
+- [ ] `Diary.result`를 선택값(`result?: string`)에서 `'WIN' | 'LOSE'` 필수값으로 변경
+- [ ] 남은 `any` 7개 제거 (위치는 "다음 세션 메모" 참고)
 - [ ] 나머지 lint 에러 수정 → `npm run lint` 에러 0
-- [ ] CI에 `npm run lint` 추가, CLAUDE.md의 "lint는 S1 이후 필수" 문구 갱신
+- [ ] CI에 `npm run lint` 추가, CLAUDE.md의 "lint는 S1 완료 후부터 필수" 문구 갱신
 - 완료 조건: build와 lint 모두 통과, 화면 동작 변화 없음
+- 예상: 반나절
 
 ## S2. 버그와 하드코딩 정리
 - [ ] BO5 일기를 수정하면 BO3로 표시되는 문제: `matchFormat`을 저장하고 복원
@@ -66,3 +74,4 @@
 ## 발견한 문제 (범위 밖 메모)
 - `react-calendar` 의존성을 쓰지 않음, `src/App.css`를 import하는 곳이 없음 → 정리 여부 결정 필요
 - DiaryFormModal의 블루/레드 슬롯 코드가 거의 같은 코드로 중복됨 → 컴포넌트로 분리 후보
+- 티어 아이콘이 LoL 공식 랭크 엠블럼으로 보임 → 배포/공개 전에 Riot의 팬 프로젝트 에셋 사용 조건(고지 문구 등) 확인 필요
