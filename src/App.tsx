@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import type { Diary } from './types/diary'; 
+import { useState, useEffect } from 'react';
+import type { Diary } from './types/diary';
 import ProfileHeader from "./components/ProfileHeader";
 import SpectateCalendar from "./components/SpectateCalendar";
 import DiaryFeed from "./components/DiaryFeed";

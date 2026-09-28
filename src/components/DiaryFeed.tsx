@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import type { Diary } from '../types/diary'; 
+import { useState, useEffect } from 'react';
+import type { Diary } from '../types/diary';
 import { MapPin, Trophy, Plus, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface DiaryFeedProps {

@@ -1,5 +1,4 @@
-import React from 'react';
-import type { Diary } from '../types/diary'; 
+import type { Diary } from '../types/diary';
 import { Award, Percent, Flame } from 'lucide-react';
 import { TIER_ICONS } from '../assets/tiers/tierIndex';
 
