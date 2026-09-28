@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 사용자가 VS Code에서 직접 수정할 때도 main 동기화 → 새 브랜치 → 커밋·push → PR 순서를 따른다.
 - 커밋 메시지는 `feat:` / `fix:` / `docs:` / `chore:` / `refactor:` + 한국어 요약으로 쓴다.
 - PR 설명은 `무엇을 바꿨나 / 왜 / 어떻게 확인했나` 3개 섹션으로 쓴다.
-- 커밋 메시지와 PR 설명에 Claude 서명 문구(`Co-Authored-By`, `Generated with Claude Code`, 세션 링크 등)를 넣지 않는다.
+- 커밋 메시지와 PR 설명에 Claude 서명 문구(`Co-Authored-By`, `Generated with Claude Code`, 세션 링크 등)를 넣지 않는다 PR 생성 도구가 본문 끝에 서명을 자동으로 붙이면, 생성 직후 PR 본문을 수정해서 지운다.
 - 코드를 바꾼 PR은 사용자가 "왜" 섹션을 직접 작성한다. Claude는 초안에 `(사용자 작성)` 자리표시자만 두고, 사용자가 이해하지 못한 부분을 물어보면 설명한다. 설정이나 문서만 바꾼 PR은 Claude 초안 그대로 두어도 된다.
 
 ## 프로젝트 개요
