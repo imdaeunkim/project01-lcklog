@@ -50,7 +50,7 @@ export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }
         setMatch(editingDiary.match);
         setScore(editingDiary.score === "0:0" ? "" : editingDiary.score);
         setResult(editingDiary.result);
-        setLocati=on(editingDiary.location === "미지정 장소" ? "" : editingDiary.location);
+        setLocation(editingDiary.location === "미지정 장소" ? "" : editingDiary.location);
         setContent(editingDiary.content);
         setPom(editingDiary.pom === "미지정" ? "" : editingDiary.pom);
         setSelectedChamps(editingDiary.pickedChampions || {});

@@ -7,7 +7,7 @@ interface SpectateCalendarProps {
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   currentYearMonth: { year: number; month: number };
-setCurrentYearMonth: (newYearMonth: { year: number; month: number }) => void;}
+  setCurrentYearMonth: React.Dispatch<React.SetStateAction<{ year: number; month: number }>>;}
 
 export default function SpectateCalendar({ 
   diaries,
