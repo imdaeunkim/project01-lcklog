@@ -21,7 +21,7 @@
 - [x] CLAUDE.md 작업 규칙, ROADMAP, Hook(guard-git), CI(빌드)
 - [x] PR 머지 (PR #1)
 - [x] (사용자) Vercel 연결 (PR #2에서 Vercel 체크 확인)
-- [ ] (사용자) 배포 URL이 실제로 열리는지 확인
+- [x] (사용자) 배포 URL이 실제로 열리는지 확인
 - [x] (사용자, S0 이후 추가 작업) 공통 타입 `src/types/diary.ts`, 티어 이미지, 디자인 정리 (PR #2)
 - [ ] (사용자, 선택) GitHub에서 main 브랜치 보호 + CI 통과 필수 설정
 
