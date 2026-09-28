@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 커밋 전에 `npm run build`를 통과해야 한다. (Hook이 commit 직전에 자동 실행한다) lint는 S1 완료 후부터 필수로 한다.
 - 커밋 메시지는 `feat:` / `fix:` / `docs:` / `chore:` / `refactor:` + 한국어 요약으로 쓴다.
 - PR 설명은 `무엇을 바꿨나 / 왜 / 어떻게 확인했나` 3개 섹션으로 쓴다.
+- 코드를 바꾼 PR은 사용자가 "왜" 섹션을 직접 작성한다. Claude는 초안에 `(사용자 작성)` 자리표시자만 두고, 사용자가 이해하지 못한 부분을 물어보면 설명한다. 설정이나 문서만 바꾼 PR은 Claude 초안 그대로 두어도 된다.
 
 ## 프로젝트 개요
 
