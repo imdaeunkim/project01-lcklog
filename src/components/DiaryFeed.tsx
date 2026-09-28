@@ -1,24 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import type { Diary } from '../types/diary'; 
 import { MapPin, Trophy, Plus, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface DiaryFeedProps {
-  diaries: Array<{
-    id: number;
-    match: string;
-    score: string;
-    location: string;
-    date: string;
-    content: string;
-    pom: string;
-    image?: string; 
-    images?: string[]; 
-    representativeIndex?: number;
-    pickedChampions?: Record<string, { name: string; imageUrl: string }>; 
-  }>;
+  diaries: Diary[]; 
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   onOpenModal: () => void;
-  onEdit: (diary: any) => void;
+  onEdit: (diary: Diary) => void; 
 }
 
 export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenModal, onEdit }: DiaryFeedProps) {
@@ -118,7 +107,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                   </div>
 
                   <div className="flex-1 flex flex-col gap-2 relative pr-8">
-                    <div className="flex flex-wrap items-center gap-2 border-b border-[#f3f4f6] pb-2">
+                    <div className="flex flex-wrap items-center gap-2 pb-2">
                       <span className="text-xs font-black bg-[#0a1428] border border-[#c8aa6e] px-2 py-0.5 rounded text-[#f0e6d2]">
                         {diary.match}
                       </span>
@@ -138,7 +127,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
 
                     <div className="flex items-center gap-1 text-[11px] font-bold text-gray-500 mt-1">
                       <Trophy className="w-3 h-3 text-[#fbbf24]" />
-                      <span>POM: <strong className="text-black font-black">{diary.pom}</strong></span>
+                      <span>POM: <span className="text-black font-black">{diary.pom}</span></span>
                     </div>
 
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400">
@@ -166,11 +155,11 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                                     <img 
                                       src={champ.imageUrl} 
                                       alt={champ.name} 
-                                      className="w-9 h-9 rounded-md object-cover border border-[#b3ccff] hover:scale-105 transition-transform" 
+                                      className="size-9 rounded-md object-cover border border-[#b3ccff] hover:scale-105 transition-transform" 
                                       title={`블루 ${box}번: ${champ.name}`}
                                     />
                                   ) : (
-                                    <div className="w-9 h-9 bg-[#ecf2ff] border border-dashed border-[#b3ccff] rounded-md flex items-center justify-center text-[10px] text-[#4477ee] font-bold">?</div>
+                                    <div className="size-9 bg-[#ecf2ff] border border-dashed border-[#b3ccff] rounded-md flex items-center justify-center text-[10px] text-[#4477ee] font-bold">?</div>
                                   )}
                                 </div>
                               );
@@ -191,11 +180,11 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                                     <img 
                                       src={champ.imageUrl} 
                                       alt={champ.name} 
-                                      className="w-9 h-9 rounded-md object-cover border border-[#ffd0d6] hover:scale-105 transition-transform" 
+                                      className="size-9 rounded-md object-cover border border-[#ffd0d6] hover:scale-105 transition-transform" 
                                       title={`레드 ${box}번: ${champ.name}`}
                                     />
                                   ) : (
-                                    <div className="w-9 h-9 bg-[#fff0f2] border border-dashed border-[#ffd0d6] rounded-md flex items-center justify-center text-[10px] text-[#e05260] font-bold">?</div>
+                                    <div className="size-9 bg-[#fff0f2] border border-dashed border-[#ffd0d6] rounded-md flex items-center justify-center text-[10px] text-[#e05260] font-bold">?</div>
                                   )}
                                 </div>
                               );
@@ -211,19 +200,19 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                     )}
 
                     <div className="text-xs text-gray-500 font-medium bg-[#f9fafb] border p-4 rounded-lg flex flex-col gap-1">
-                      <div className="leading-relaxed">📝 <strong className="text-gray-700">전체 소감:</strong> {diary.content}</div>
+                      <div className="leading-relaxed">📝 {diary.content}</div>
                       
                       {/* 이미지 슬라이더 갤러리 */}
                       {diary.images && diary.images.length > 0 && (
                         <div className="mt-4 border-t border-gray-200/60 pt-3">
-                          <span className="text-[10px] font-bold text-[#6b7280] block mb-2">📸 직관 현장 갤러리</span>
+                          <span className="text-[10px] font-bold text-[#6b7280] block mb-2">📸 직관 사진 모음</span>
                           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-200">
                             {diary.images.map((imgUrl, idx) => {
                               const isRep = idx === repIdx;
                               return (
                                 <div 
                                   key={idx} 
-                                  className={`w-24 h-24 rounded-lg overflow-hidden shrink-0 shadow-sm transition-all relative group cursor-pointer border-2
+                                  className={`size-24 rounded-lg overflow-hidden shrink-0 shadow-sm transition-all relative group cursor-pointer border-2
                                     ${isRep 
                                       ? "border-[#c8aa6e] ring-2 ring-[#c8aa6e]/20" 
                                       : "border-[#e5e7eb] hover:border-gray-400"
@@ -236,7 +225,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
                                   <img 
                                     src={imgUrl} 
                                     alt={`현장 사진 ${idx + 1}`} 
-                                    className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" 
+                                    className="size-full object-cover hover:scale-110 transition-transform duration-300" 
                                   />
                                   {isRep && (
                                     <span className="absolute bottom-1 right-1 bg-[#c8aa6e] text-[#0a1428] text-[8px] font-black px-1.5 py-0.5 rounded border border-[#0a1428]">
@@ -280,7 +269,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
               onClick={() => onSelectDate(null)}
               className="mt-2 flex items-center gap-1.5 text-xs font-black bg-[#0a1428] text-[#f0e6d2] px-4 py-2 rounded-lg border border-[#c8aa6e] hover:bg-[#121c2c] transition-colors shadow-sm"
             >
-              <RefreshCw className="w-3 h-3" />
+              <RefreshCw className="size-3" />
               전체 기록 보기
             </button>
           </div>
@@ -292,7 +281,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
         className="fixed bottom-8 right-8 z-50 bg-[#0a1428] hover:bg-[#121c2c] text-[#f0e6d2] p-4 rounded-full shadow-2xl transition-transform hover:scale-110 border-2 border-[#c8aa6e]"
         title="오늘의 직관 기록하기"
       >
-        <Plus className="w-6 h-6 stroke-[3]" />
+        <Plus className="size-6 stroke-[3]" />
       </button>
 
       {/* 이미지 라이트박스 팝업 */}
@@ -307,7 +296,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
               onClick={() => setActiveImagePopup(null)}
               className="absolute -top-12 right-0 text-white hover:text-[#c8aa6e] transition-colors p-1"
             >
-              <X className="w-8 h-8 stroke-[2.5]" />
+              <X className="size-8 stroke-[2.5]" />
             </button>
             
             <img 

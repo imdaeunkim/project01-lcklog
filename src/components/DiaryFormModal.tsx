@@ -23,7 +23,7 @@ interface ActiveSlot {
 }
 
 export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }: DiaryFormModalProps) {
-  const [matchFormat, setMatchFormat] = useState<3 | 5>(3);
+  const [matchFormat, setMatchFormat] = useState<1 | 3 | 5>(3);
   const [selectedPosition, setSelectedPosition] = useState<Position>("ALL");
 
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null);
@@ -50,7 +50,7 @@ export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }
         setMatch(editingDiary.match);
         setScore(editingDiary.score === "0:0" ? "" : editingDiary.score);
         setResult(editingDiary.result);
-        setLocation(editingDiary.location === "미지정 장소" ? "" : editingDiary.location);
+        setLocati=on(editingDiary.location === "미지정 장소" ? "" : editingDiary.location);
         setContent(editingDiary.content);
         setPom(editingDiary.pom === "미지정" ? "" : editingDiary.pom);
         setSelectedChamps(editingDiary.pickedChampions || {});
