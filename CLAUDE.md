@@ -19,6 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 해당 단계 범위만 작업한다. 범위 밖 문제를 발견하면 ROADMAP의 "발견한 문제"에 메모만 남긴다.
 - 세션을 끝낼 때는 ROADMAP의 체크박스와 "다음 세션 메모"를 갱신하고, 커밋과 push 후 PR을 만든다.
 - 새 세션은 main에서 시작하므로, 사용자가 PR을 머지해야 다음 세션이 변경 내용을 볼 수 있다.
+- PR은 단계당 1개만 만든다. ROADMAP 체크박스, 메모, CLAUDE.md 규칙 한두 줄 같은 작은 문서 수정은 따로 PR을 만들지 않고 진행 중인 단계의 PR에 함께 커밋한다. 진행 중인 PR이 없으면 ROADMAP "다음 세션 메모"에 적어두고 다음 단계 PR에서 반영한다.
 
 ### Git과 검증
 - main/master에 직접 commit하거나 push하지 않는다. 강제 push도 하지 않는다. (`.claude/hooks/guard-git.mjs`가 차단한다)
