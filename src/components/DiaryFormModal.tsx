@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, Map as MapIcon, Image as ImageIcon, Crosshair } from 'lucide-react';
 import { CHAMPIONS_LIST } from "../data/champions";
+import type { Champion } from "../data/champions";
+import type { Diary } from "../types/diary";
 import imgTop from '../assets/positions/top.png';
 import imgJungle from '../assets/positions/jungle.png';
 import imgMid from '../assets/positions/mid.png';
@@ -10,10 +12,18 @@ import imgSupport from '../assets/positions/sup.png';
 type Position = "ALL" | "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT";
 
 interface DiaryFormModalProps {
-  isOpen: boolean;
   onClose: () => void;
-  onSave: (diary: any) => void;
-  editingDiary?: any | null; 
+  onSave: (diary: Diary) => void;
+  editingDiary: Diary | null;
+}
+
+// 신규 작성 시 날짜 기본값: 오늘 (input type="date" 형식 YYYY-MM-DD)
+function getTodayInputDate() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 interface ActiveSlot {
@@ -22,66 +32,35 @@ interface ActiveSlot {
   boxIndex: number;
 }
 
-export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }: DiaryFormModalProps) {
+export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryFormModalProps) {
   const [matchFormat, setMatchFormat] = useState<1 | 3 | 5>(3);
   const [selectedPosition, setSelectedPosition] = useState<Position>("ALL");
 
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null);
-  const [selectedChamps, setSelectedChamps] = useState<Record<string, { name: string; imageUrl: string }>>({});
+  // 모달은 열릴 때마다 새로 만들어지므로(App의 key 참고), 수정 모드면 기존 값으로, 신규면 기본값으로 초기화한다
+  const [selectedChamps, setSelectedChamps] = useState<Record<string, { name: string; imageUrl: string }>>(
+    () => editingDiary?.pickedChampions || {}
+  );
 
-  const [date, setDate] = useState('2026-06-18');
-  const [match, setMatch] = useState('T1 vs DK');
-  const [score, setScore] = useState('');
-  const [result, setResult] = useState('WIN');
-  const [location, setLocation] = useState('');
-  const [content, setContent] = useState('');
-  const [pom, setPom] = useState('');
+  const [date, setDate] = useState(() => editingDiary ? editingDiary.date.replace(/\./g, '-') : getTodayInputDate());
+  const [match, setMatch] = useState(editingDiary?.match ?? 'T1 vs DK');
+  const [score, setScore] = useState(editingDiary && editingDiary.score !== "0:0" ? editingDiary.score : '');
+  const [result, setResult] = useState<Diary['result']>(editingDiary?.result ?? 'WIN');
+  const [location, setLocation] = useState(editingDiary && editingDiary.location !== "미지정 장소" ? editingDiary.location : '');
+  const [content, setContent] = useState(editingDiary?.content ?? '');
+  const [pom, setPom] = useState(editingDiary && editingDiary.pom !== "미지정" ? editingDiary.pom : '');
 
   // 이미지 상태 관리
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [representativeIndex, setRepresentativeIndex] = useState<number>(0);
+  const [uploadedImages, setUploadedImages] = useState<string[]>(
+    () => editingDiary?.images || (editingDiary?.image ? [editingDiary.image] : [])
+  );
+  const [representativeIndex, setRepresentativeIndex] = useState<number>(editingDiary?.representativeIndex ?? 0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // 모달 오픈 시 수정/신규 데이터 바인딩
-  useEffect(() => {
-    if (isOpen) {
-      if (editingDiary) {
-        setDate(editingDiary.date.replace(/\./g, '-')); 
-        setMatch(editingDiary.match);
-        setScore(editingDiary.score === "0:0" ? "" : editingDiary.score);
-        setResult(editingDiary.result);
-        setLocation(editingDiary.location === "미지정 장소" ? "" : editingDiary.location);
-        setContent(editingDiary.content);
-        setPom(editingDiary.pom === "미지정" ? "" : editingDiary.pom);
-        setSelectedChamps(editingDiary.pickedChampions || {});
-        setUploadedImages(editingDiary.images || (editingDiary.image ? [editingDiary.image] : []));
-        setRepresentativeIndex(editingDiary.representativeIndex ?? 0);
-      } else {
-        const today = new Date();
-        const y = today.getFullYear();
-        const m = String(today.getMonth() + 1).padStart(2, '0');
-        const d = String(today.getDate()).padStart(2, '0');
-        setDate(`${y}-${m}-${d}`);
-        
-        setMatch('T1 vs DK');
-        setScore('');
-        setResult('WIN');
-        setLocation('');
-        setContent('');
-        setPom('');
-        setSelectedChamps({});
-        setUploadedImages([]);
-        setRepresentativeIndex(0);
-      }
-    }
-  }, [isOpen, editingDiary]);
 
   const filteredChampions = CHAMPIONS_LIST.filter((champ) => {
     if (selectedPosition === "ALL") return true;
     return champ.positions.includes(selectedPosition);
   });
-
-  if (!isOpen) return null;
 
   // 파일 업로드 처리 (용량 제한 1MB)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,7 +123,7 @@ export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }
       return;
     }
 
-    const newDiary = {
+    const newDiary: Diary = {
       id: editingDiary ? editingDiary.id : Date.now(),
       match: match,
       score: score.trim() || "0:0", 
@@ -154,7 +133,7 @@ export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }
       content: content,
       pom: pom || "미지정",
       pickedChampions: selectedChamps,
-      image: uploadedImages[representativeIndex] || null, 
+      image: uploadedImages[representativeIndex] || undefined, 
       images: uploadedImages,
       representativeIndex: representativeIndex
     };
@@ -216,7 +195,7 @@ export default function DiaryFormModal({ isOpen, onClose, onSave, editingDiary }
                   />
                   <select 
                     value={result}
-                    onChange={(e) => setResult(e.target.value)}
+                    onChange={(e) => setResult(e.target.value as Diary['result'])}
                     className="w-1/2 border border-[#d1d5db] rounded-md p-2.5 text-sm focus:outline-none focus:border-[#c8aa6e] font-bold"
                   >
                     <option value="WIN" className="text-[#2255cc]">WIN</option>
@@ -519,7 +498,7 @@ function ChampionPickerSelect({
   setSelectedPosition 
 }: { 
   onSelect: (name: string, url: string) => void;
-  filteredChampions: any[];
+  filteredChampions: Champion[];
   selectedPosition: Position;
   setSelectedPosition: (pos: Position) => void;
 }) {
@@ -533,7 +512,7 @@ function ChampionPickerSelect({
           { id: "MID", label: "미드", url: imgMid },
           { id: "ADC", label: "원딜", url: imgAdc },
           { id: "SUPPORT", label: "서폿", url: imgSupport }
-        ] as { id: Position; label: string; url: any }[]).map((pos) => (
+        ] as { id: Position; label: string; url: string | null }[]).map((pos) => (
           <button
             key={pos.id}
             type="button"
@@ -547,7 +526,7 @@ function ChampionPickerSelect({
             {pos.id === "ALL" ? (
               <span className={`text-[10px] font-black ${selectedPosition === "ALL" ? "text-[#f0e6d2]" : "text-gray-500"}`}>전체</span>
             ) : (
-              <img src={pos.url} alt={pos.label} className={`w-5 h-5 object-contain ${selectedPosition === pos.id ? "brightness-150" : "opacity-60"}`} />
+              <img src={pos.url ?? undefined} alt={pos.label} className={`w-5 h-5 object-contain ${selectedPosition === pos.id ? "brightness-150" : "opacity-60"}`} />
             )}
           </button>
         ))}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 import type { Diary } from './types/diary';
 import ProfileHeader from "./components/ProfileHeader";
 import SpectateCalendar from "./components/SpectateCalendar";
@@ -52,13 +53,13 @@ export default function App() {
   }, [diaries]);
 
   // 수정 버튼 클릭 시 모달을 수정 모드로 오픈하는 함수
-  const handleOpenEditModal = (diary: any) => {
+  const handleOpenEditModal = (diary: Diary) => {
     setEditingDiary(diary); 
     setIsModalOpen(true);   
   };
 
   // 저장 버튼 클릭 시
-  const handleSaveDiary = (diaryData: any) => {
+  const handleSaveDiary = (diaryData: Diary) => {
     if (editingDiary) {
       // 수정 
       setDiaries(diaries.map(d => d.id === editingDiary.id ? diaryData : d));
@@ -112,19 +113,30 @@ export default function App() {
               diaries={diaries} 
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
-              onOpenModal={() => setIsModalOpen(true)} 
               onEdit={handleOpenEditModal} 
             />
           </div>
         </div>
       </main>
 
-      <DiaryFormModal 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
-        onSave={handleSaveDiary} 
-        editingDiary={editingDiary}
-      />
+      {/* 새 일기 작성 버튼 (화면 오른쪽 아래에 고정) */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="fixed bottom-8 right-8 z-50 bg-[#0a1428] hover:bg-[#121c2c] text-[#f0e6d2] p-4 rounded-full shadow-2xl transition-transform hover:scale-110 border-2 border-[#c8aa6e]"
+        title="오늘의 직관 기록하기"
+      >
+        <Plus className="size-6 stroke-[3]" />
+      </button>
+
+      {/* 열려 있을 때만 그린다. key가 바뀌면(다른 일기 수정) 모달을 새로 만들어 초기값을 다시 채운다 */}
+      {isModalOpen && (
+        <DiaryFormModal 
+          key={editingDiary?.id ?? 'new'}
+          onClose={handleCloseModal} 
+          onSave={handleSaveDiary} 
+          editingDiary={editingDiary}
+        />
+      )}
     </div>
   );
 }

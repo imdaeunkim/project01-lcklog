@@ -2,7 +2,7 @@ export interface Diary {
   id: number;
   match: string;
   score: string;
-  result?: string; 
+  result: 'WIN' | 'LOSE';
   location: string;
   date: string;
   content: string;

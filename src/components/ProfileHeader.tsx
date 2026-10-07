@@ -27,9 +27,10 @@ export default function ProfileHeader({
     : 0;
 
   // 승률 기반 직관 티어 판독
-  let tierName = "UNRANKED";
-  let tierIcon = TIER_ICONS.UNRANKED;
-  let tierColor = "text-[#94a3b8]";
+  // 값은 아래 if/else에서 항상 정해진다
+  let tierName: string;
+  let tierIcon: string;
+  let tierColor: string;
 
 if (myAttendanceCount === 0) {
   tierName = "UNRANKED";
