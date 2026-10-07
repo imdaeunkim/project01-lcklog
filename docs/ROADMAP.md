@@ -11,7 +11,6 @@
 - S0에서 `.claude/settings.json`에 `defaultMode: plan`을 넣었다. 새 세션이 플랜 모드로 시작하는지 확인하고 결과를 여기에 적는다.
 - S1(10/7) 완료: lint 에러 0, CI에 lint 추가. 이제 build와 lint 모두 필수.
 - S1 브라우저 확인(작성, 수정, 다른 일기 수정, 캘린더 필터, 승률·티어, + 버튼)은 사용자가 완료함(10/7).
-- 학습 노트는 `docs/study/`에 단계별로 남긴다(S1: `2026-10-07-S1-react-notes.md`).
 - S1에서 모달을 열 때마다 새로 만들도록 바꿨다(App의 `isModalOpen &&` + `key`). 그래서 모달을 열면 `matchFormat`이 항상 BO3로 시작한다. S2의 BO5 복원은 `useState` 초기값에서 `editingDiary`의 저장값을 읽도록 하면 된다.
 - 오늘(10/7) 개발이 끝나면 ROADMAP 일정을 다시 조정할지 사용자와 확인하기로 함.
 - 티어 아이콘(`src/assets/tiers/`)은 144×144px로 축소해 두었다(표시 크기 36px). 새 이미지를 추가할 때도 표시 크기의 4배 이하로 줄여서 넣는다.
