@@ -1,17 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Diary } from '../types/diary';
-import { MapPin, Trophy, Plus, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { MapPin, Trophy, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface DiaryFeedProps {
   diaries: Diary[]; 
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
-  onOpenModal: () => void;
   onEdit: (diary: Diary) => void; 
 }
 
-export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenModal, onEdit }: DiaryFeedProps) {
-  const [expandedId, setExpandedId] = useState<number | null>(1); 
+export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit }: DiaryFeedProps) {
   const [activeImagePopup, setActiveImagePopup] = useState<string | null>(null);
 
   const filteredDiaries = diaries.filter(diary => {
@@ -19,19 +17,24 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
     return diary.date === selectedDate;
   });
 
-  useEffect(() => {
-    if (filteredDiaries.length > 0) {
-      setExpandedId(filteredDiaries[0].id);
-    } else {
-      setExpandedId(null);
-    }
-  }, [selectedDate, diaries]);
+  // 처음에는 목록의 첫 번째 카드를 펼친다
+  const [expandedId, setExpandedId] = useState<number | null>(filteredDiaries[0]?.id ?? null);
+
+  // 날짜 필터나 일기 목록이 바뀌면 첫 번째 카드를 다시 펼친다.
+  // 이전 값을 기억해 두고 렌더링 중에 비교한다 (useEffect에서 setState하지 않는 방식)
+  const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
+  const [prevDiaries, setPrevDiaries] = useState(diaries);
+  if (prevSelectedDate !== selectedDate || prevDiaries !== diaries) {
+    setPrevSelectedDate(selectedDate);
+    setPrevDiaries(diaries);
+    setExpandedId(filteredDiaries[0]?.id ?? null);
+  }
 
   const handleCardClick = (id: number) => {
     setExpandedId(expandedId === id ? null : id);
   };
 
-  const getGameCount = (pickedChamps?: Record<string, any>) => {
+  const getGameCount = (pickedChamps: Diary['pickedChampions']) => {
     if (!pickedChamps) return 0;
     const keys = Object.keys(pickedChamps);
     let maxGameIdx = -1;
@@ -275,14 +278,6 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onOpenM
           </div>
         )}
       </div>
-
-      <button
-        onClick={onOpenModal} 
-        className="fixed bottom-8 right-8 z-50 bg-[#0a1428] hover:bg-[#121c2c] text-[#f0e6d2] p-4 rounded-full shadow-2xl transition-transform hover:scale-110 border-2 border-[#c8aa6e]"
-        title="오늘의 직관 기록하기"
-      >
-        <Plus className="size-6 stroke-[3]" />
-      </button>
 
       {/* 이미지 라이트박스 팝업 */}
       {activeImagePopup && (

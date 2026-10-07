@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Git과 검증
 - main/master에 직접 commit하거나 push하지 않는다. 강제 push도 하지 않는다. (`.claude/hooks/guard-git.mjs`가 차단한다)
-- 커밋 전에 `npm run build`를 통과해야 한다. (Hook이 commit 직전에 자동 실행한다) lint는 S1 완료 후부터 필수로 한다.
+- 커밋 전에 `npm run build`와 `npm run lint`를 모두 통과해야 한다. (Hook은 commit 직전에 build만 자동 실행한다. lint는 CI가 PR에서 검사한다)
 - 사용자가 VS Code에서 직접 수정할 때도 main 동기화 → 새 브랜치 → 커밋·push → PR 순서를 따른다.
 - 커밋 메시지는 `feat:` / `fix:` / `docs:` / `chore:` / `refactor:` + 한국어 요약으로 쓴다.
 - PR 설명은 `무엇을 바꿨나 / 왜 / 어떻게 확인했나` 3개 섹션으로 쓴다.
@@ -50,12 +50,12 @@ npm run preview    # 빌드 결과물 미리보기
 ### 상태와 데이터 흐름
 - 모든 상태는 `src/App.tsx`에 있고, 자식 컴포넌트에는 props로 내려준다. 라우터와 전역 상태 라이브러리는 쓰지 않는다.
 - 일기 목록(`diaries`)은 `localStorage`의 `lol-diaries` 키에 저장된다. `useEffect`에서 변경될 때마다 통째로 직렬화한다. 저장된 값이 없을 때만 App.tsx에 하드코딩된 샘플 2건을 쓴다.
-- 작성과 수정은 `DiaryFormModal` 하나가 처리한다. `editingDiary`가 `null`이면 신규 작성이고, 객체이면 수정 모드다. `App.handleSaveDiary`가 `id`로 기존 항목을 교체하거나 목록 맨 앞에 추가한다.
+- 작성과 수정은 `DiaryFormModal` 하나가 처리한다. `editingDiary`가 `null`이면 신규 작성이고, 객체이면 수정 모드다. App은 모달을 열려 있을 때만 `key={editingDiary?.id ?? 'new'}`로 렌더링하고, 모달은 `useState` 초기값에서 폼을 채운다(useEffect로 채우지 않는다). `App.handleSaveDiary`가 `id`로 기존 항목을 교체하거나 목록 맨 앞에 추가한다.
 - `selectedDate`는 `SpectateCalendar`와 `DiaryFeed`가 공유한다. 캘린더에서 날짜를 누르면 피드가 필터링된다.
 - 승률, 전적 같은 통계는 `ProfileHeader`와 `SpectateCalendar`가 `diaries`에서 매번 직접 계산한다. 저장해두는 집계값은 없다.
 
 ### Diary 객체 형태 (DiaryFormModal.handleSubmit 기준)
-공통 타입은 `src/types/diary.ts`의 `Diary` 인터페이스다. App, DiaryFeed, SpectateCalendar, ProfileHeader가 이 타입을 쓴다. DiaryFormModal의 Props와 App의 일부 핸들러에는 아직 `any`가 남아 있다(S1에서 정리). 필드를 추가하거나 바꿀 때는 `Diary` 타입과 DiaryFormModal의 `handleSubmit`을 함께 고친다.
+공통 타입은 `src/types/diary.ts`의 `Diary` 인터페이스다. App과 모든 컴포넌트가 이 타입을 쓴다. 필드를 추가하거나 바꿀 때는 `Diary` 타입과 DiaryFormModal의 `handleSubmit`을 함께 고친다.
 
 - `id`: `Date.now()`
 - `date`: **`"YYYY.MM.DD"` 문자열**(점 구분). `<input type="date">`는 `YYYY-MM-DD`를 쓰므로 모달이 로드하고 저장할 때 서로 변환한다. 캘린더와 피드의 날짜 비교도 점 구분 형식에 의존한다.
