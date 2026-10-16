@@ -3,7 +3,7 @@
 //
 // - 이름(한국어), 이미지: Riot Data Dragon 최신 버전
 // - 포지션: Meraki Analytics (커뮤니티 데이터. 롤 클라이언트 분류와 다를 수 있음)
-// - 틀린 포지션은 scripts/champion-position-overrides.json 에 적으면 마지막에 덮어쓴다
+// - 틀린 포지션은 scripts/champion-position-overrides.json 에 적으면 마지막에 덮어씀
 //   예: { "Azir": ["MID"] }  (키는 Data Dragon id)
 import { readFile, writeFile } from 'node:fs/promises';
 
@@ -31,7 +31,7 @@ const ddragon = await fetchJson(`https://ddragon.leagueoflegends.com/cdn/${versi
 const meraki = await fetchJson('https://cdn.merakianalytics.com/riot/lol/resources/latest/en-US/champions.json');
 const overrides = JSON.parse(await readFile(OVERRIDES_PATH, 'utf8'));
 
-// 영문 id는 출처마다 다를 수 있어서(예: Wukong / MonkeyKing) 챔피언 고유 번호로 맞춘다
+// 영문 id는 출처마다 다를 수 있어서(예: Wukong / MonkeyKing) 챔피언 고유 번호로 맞춤
 const merakiByNumber = new Map(Object.values(meraki).map((c) => [String(c.id), c]));
 
 const missing = [];
@@ -64,7 +64,7 @@ champions.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 const toLine = (c, indent) =>
   `${indent}{ id: ${JSON.stringify(c.id)}, name: ${JSON.stringify(c.name)}, imageUrl: ${JSON.stringify(c.imageUrl)} },`;
 
-// 포지션별 묶음. 여러 포지션을 가는 챔피언은 각 묶음에 중복으로 들어간다
+// 포지션별 묶음. 여러 포지션을 가는 챔피언은 각 묶음에 중복으로 들어감
 const POSITION_LABELS = { TOP: '탑', JUNGLE: '정글', MID: '미드', ADC: '원딜', SUPPORT: '서폿' };
 const groups = VALID_POSITIONS.map((pos) => {
   const list = champions.filter((c) => c.positions.includes(pos));
@@ -74,8 +74,8 @@ ${list.map((c) => toLine(c, '    ')).join('\n')}
   ],`;
 });
 
-const output = `// 이 파일은 scripts/generate-champions.mjs 가 자동으로 만든다. 직접 고치지 말 것.
-// 포지션 수정은 scripts/champion-position-overrides.json 에 적고 \`npm run gen:champions\`를 다시 실행한다.
+const output = `// 이 파일은 scripts/generate-champions.mjs 가 자동 생성. 직접 수정 금지.
+// 포지션 수정은 scripts/champion-position-overrides.json 에 적고 \`npm run gen:champions\` 다시 실행.
 // Data Dragon 버전: ${version}
 
 export type ChampionPosition = "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT";
@@ -86,12 +86,12 @@ export interface Champion {
   imageUrl: string;
 }
 
-// 포지션별 챔피언. 여러 포지션을 가는 챔피언은 각 포지션에 중복으로 들어 있다
+// 포지션별 챔피언. 여러 포지션을 가는 챔피언은 각 포지션에 중복으로 들어 있음
 export const CHAMPIONS_BY_POSITION: Record<ChampionPosition, Champion[]> = {
 ${groups.join('\n\n')}
 };
 
-// 전체 챔피언 (중복 없음, 가나다순). 포지션 정보가 없는 챔피언도 여기에는 들어 있다
+// 전체 챔피언 (중복 없음, 가나다순). 포지션 정보가 없는 챔피언도 여기에는 들어 있음
 export const CHAMPIONS_LIST: Champion[] = [
 ${champions.map((c) => toLine(c, '  ')).join('\n')}
 ];

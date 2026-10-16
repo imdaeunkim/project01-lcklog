@@ -1,5 +1,5 @@
-// 이 파일은 scripts/generate-champions.mjs 가 자동으로 만든다. 직접 고치지 말 것.
-// 포지션 수정은 scripts/champion-position-overrides.json 에 적고 `npm run gen:champions`를 다시 실행한다.
+// 이 파일은 scripts/generate-champions.mjs 가 자동 생성. 직접 수정 금지.
+// 포지션 수정은 scripts/champion-position-overrides.json 에 적고 `npm run gen:champions` 다시 실행.
 // Data Dragon 버전: 16.20.1
 
 export type ChampionPosition = "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT";
@@ -10,7 +10,7 @@ export interface Champion {
   imageUrl: string;
 }
 
-// 포지션별 챔피언. 여러 포지션을 가는 챔피언은 각 포지션에 중복으로 들어 있다
+// 포지션별 챔피언. 여러 포지션을 가는 챔피언은 각 포지션에 중복으로 들어 있음
 export const CHAMPIONS_BY_POSITION: Record<ChampionPosition, Champion[]> = {
   // 탑 (TOP) 63명
   TOP: [
@@ -301,7 +301,7 @@ export const CHAMPIONS_BY_POSITION: Record<ChampionPosition, Champion[]> = {
   ],
 };
 
-// 전체 챔피언 (중복 없음, 가나다순). 포지션 정보가 없는 챔피언도 여기에는 들어 있다
+// 전체 챔피언 (중복 없음, 가나다순). 포지션 정보가 없는 챔피언도 여기에는 들어 있음
 export const CHAMPIONS_LIST: Champion[] = [
   { id: "Garen", name: "가렌", imageUrl: "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Garen.png" },
   { id: "Galio", name: "갈리오", imageUrl: "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Galio.png" },

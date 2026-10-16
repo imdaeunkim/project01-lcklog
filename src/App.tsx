@@ -9,7 +9,7 @@ import DiaryFormModal from "./components/DiaryFormModal";
 
 const STORAGE_KEY = 'lol-diaries';
 
-// 샘플 일기용: 챔피언 id 목록을 실제 저장 형식(game0-blue-1 ...)으로 바꾼다. 1세트만 채운다
+// 샘플 일기용: 챔피언 id 목록을 실제 저장 형식(game0-blue-1 ...)으로 변환. 1세트만 채움
 function buildSamplePicks(blueIds: string[], redIds: string[]): Diary['pickedChampions'] {
   const picks: NonNullable<Diary['pickedChampions']> = {};
   const fill = (team: 'blue' | 'red', ids: string[]) => {
@@ -23,7 +23,7 @@ function buildSamplePicks(blueIds: string[], redIds: string[]): Diary['pickedCha
   return picks;
 }
 
-// localStorage에 저장한다. 용량 초과 등으로 실패하면 false를 돌려준다
+// localStorage에 저장. 용량 초과 등으로 실패하면 false 반환
 function saveToStorage(diaries: Diary[]): boolean {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(diaries));
@@ -37,7 +37,7 @@ function saveToStorage(diaries: Diary[]): boolean {
 export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  // 캘린더는 오늘이 속한 달부터 보여준다 (getMonth는 0부터 시작하므로 +1)
+  // 캘린더는 오늘이 속한 달부터 표시 (getMonth는 0부터 시작하므로 +1)
   const [currentYearMonth, setCurrentYearMonth] = useState(() => {
     const today = new Date();
     return { year: today.getFullYear(), month: today.getMonth() + 1 };
@@ -94,8 +94,8 @@ export default function App() {
       ? diaries.map(d => d.id === editingDiary.id ? diaryData : d) // 수정
       : [diaryData, ...diaries]; // 신규 작성
 
-    // 저장소에 먼저 저장해 보고, 성공했을 때만 화면에 반영한다.
-    // 실패하면 모달을 닫지 않아서 작성한 내용이 그대로 남는다
+    // 저장소에 먼저 저장해 보고, 성공했을 때만 화면에 반영.
+    // 실패하면 모달을 닫지 않아서 작성한 내용이 그대로 남음
     if (!saveToStorage(nextDiaries)) {
       alert("저장 공간이 부족해서 저장하지 못했습니다. 사진 수를 줄이거나 다른 일기의 사진을 지운 뒤 다시 시도해 주세요.");
       return;
@@ -162,7 +162,7 @@ export default function App() {
         <Plus className="size-6 stroke-[3]" />
       </button>
 
-      {/* 열려 있을 때만 그린다. key가 바뀌면(다른 일기 수정) 모달을 새로 만들어 초기값을 다시 채운다 */}
+      {/* 열려 있을 때만 렌더링. key가 바뀌면(다른 일기 수정) 모달을 새로 만들어 초기값을 다시 채움 */}
       {isModalOpen && (
         <DiaryFormModal 
           key={editingDiary?.id ?? 'new'}

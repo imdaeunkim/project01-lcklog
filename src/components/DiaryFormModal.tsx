@@ -26,8 +26,8 @@ function getTodayInputDate() {
   return `${y}-${m}-${d}`;
 }
 
-// 수정 모드에서 세트 수 복원: 저장된 matchFormat을 쓰고,
-// 없으면(예전 일기) 4·5세트(game3, game4) 밴픽이 있는지로 추정한다
+// 수정 모드에서 세트 수 복원: 저장된 matchFormat을 사용,
+// 없으면(예전 일기) 4·5세트(game3, game4) 밴픽이 있는지로 추정
 function getInitialMatchFormat(diary: Diary | null): 3 | 5 {
   if (!diary) return 3;
   if (diary.matchFormat) return diary.matchFormat;
@@ -46,7 +46,7 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
   const [selectedPosition, setSelectedPosition] = useState<Position>("ALL");
 
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null);
-  // 모달은 열릴 때마다 새로 만들어지므로(App의 key 참고), 수정 모드면 기존 값으로, 신규면 기본값으로 초기화한다
+  // 모달은 열릴 때마다 새로 만들어지므로(App의 key 참고), 수정 모드면 기존 값으로, 신규면 기본값으로 초기화
   const [selectedChamps, setSelectedChamps] = useState<Record<string, { name: string; imageUrl: string }>>(
     () => editingDiary?.pickedChampions || {}
   );
@@ -97,8 +97,8 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
   };
 
   // 이미지 삭제 및 대표 인덱스 보정
-  // 두 state를 따로 바꾼다. updater 함수 안에서 다른 state를 바꾸면
-  // 개발 모드(StrictMode)가 updater를 두 번 실행할 때 대표 인덱스가 두 번 줄어든다
+  // 두 state를 따로 변경. updater 함수 안에서 다른 state를 바꾸면
+  // 개발 모드(StrictMode)가 updater를 두 번 실행할 때 대표 인덱스가 두 번 줄어듦
   const handleDeleteImage = (indexToRemove: number) => {
     const next = uploadedImages.filter((_, idx) => idx !== indexToRemove);
     setUploadedImages(next);

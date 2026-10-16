@@ -27,7 +27,7 @@ export default function ProfileHeader({
     : 0;
 
   // 승률 기반 직관 티어 판독
-  // 값은 아래 if/else에서 항상 정해진다
+  // 값은 아래 if/else에서 항상 정해짐
   let tierName: string;
   let tierIcon: string;
   let tierColor: string;
