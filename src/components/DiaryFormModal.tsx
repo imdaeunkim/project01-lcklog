@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { X, Map as MapIcon, Image as ImageIcon, Crosshair } from 'lucide-react';
-import { CHAMPIONS_LIST } from "../data/champions";
+import { CHAMPIONS_LIST, CHAMPIONS_BY_POSITION } from "../data/champions";
 import type { Champion } from "../data/champions";
 import type { Diary } from "../types/diary";
 import imgTop from '../assets/positions/top.png';
@@ -26,6 +26,15 @@ function getTodayInputDate() {
   return `${y}-${m}-${d}`;
 }
 
+// 수정 모드에서 세트 수 복원: 저장된 matchFormat을 쓰고,
+// 없으면(예전 일기) 4·5세트(game3, game4) 밴픽이 있는지로 추정한다
+function getInitialMatchFormat(diary: Diary | null): 3 | 5 {
+  if (!diary) return 3;
+  if (diary.matchFormat) return diary.matchFormat;
+  const hasGame4or5 = Object.keys(diary.pickedChampions ?? {}).some((key) => /^game[34]-/.test(key));
+  return hasGame4or5 ? 5 : 3;
+}
+
 interface ActiveSlot {
   gameIndex: number;
   team: 'blue' | 'red';
@@ -33,7 +42,7 @@ interface ActiveSlot {
 }
 
 export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryFormModalProps) {
-  const [matchFormat, setMatchFormat] = useState<1 | 3 | 5>(3);
+  const [matchFormat, setMatchFormat] = useState<3 | 5>(() => getInitialMatchFormat(editingDiary));
   const [selectedPosition, setSelectedPosition] = useState<Position>("ALL");
 
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null);
@@ -57,10 +66,9 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
   const [representativeIndex, setRepresentativeIndex] = useState<number>(editingDiary?.representativeIndex ?? 0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const filteredChampions = CHAMPIONS_LIST.filter((champ) => {
-    if (selectedPosition === "ALL") return true;
-    return champ.positions.includes(selectedPosition);
-  });
+  const filteredChampions = selectedPosition === "ALL"
+    ? CHAMPIONS_LIST
+    : CHAMPIONS_BY_POSITION[selectedPosition];
 
   // 파일 업로드 처리 (용량 제한 1MB)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,18 +97,17 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
   };
 
   // 이미지 삭제 및 대표 인덱스 보정
+  // 두 state를 따로 바꾼다. updater 함수 안에서 다른 state를 바꾸면
+  // 개발 모드(StrictMode)가 updater를 두 번 실행할 때 대표 인덱스가 두 번 줄어든다
   const handleDeleteImage = (indexToRemove: number) => {
-    setUploadedImages((prev) => {
-      const next = prev.filter((_, idx) => idx !== indexToRemove);
-      
-      setRepresentativeIndex((prevRepIdx) => {
-        if (next.length === 0) return 0;
-        if (indexToRemove === prevRepIdx) return 0;
-        if (indexToRemove < prevRepIdx) return prevRepIdx - 1;
-        return prevRepIdx;
-      });
+    const next = uploadedImages.filter((_, idx) => idx !== indexToRemove);
+    setUploadedImages(next);
 
-      return next;
+    setRepresentativeIndex((prevRepIdx) => {
+      if (next.length === 0) return 0;
+      if (indexToRemove === prevRepIdx) return 0;
+      if (indexToRemove < prevRepIdx) return prevRepIdx - 1;
+      return prevRepIdx;
     });
   };
 
@@ -132,6 +139,7 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
       date: date.replace(/-/g, '.'),
       content: content,
       pom: pom || "미지정",
+      matchFormat: matchFormat,
       pickedChampions: selectedChamps,
       image: uploadedImages[representativeIndex] || undefined, 
       images: uploadedImages,
