@@ -17,11 +17,11 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit 
     return diary.date === selectedDate;
   });
 
-  // 처음에는 목록의 첫 번째 카드를 펼친다
+  // 처음에는 목록의 첫 번째 카드를 펼침
   const [expandedId, setExpandedId] = useState<number | null>(filteredDiaries[0]?.id ?? null);
 
-  // 날짜 필터나 일기 목록이 바뀌면 첫 번째 카드를 다시 펼친다.
-  // 이전 값을 기억해 두고 렌더링 중에 비교한다 (useEffect에서 setState하지 않는 방식)
+  // 날짜 필터나 일기 목록이 바뀌면 첫 번째 카드를 다시 펼침.
+  // 이전 값을 기억해 두고 렌더링 중에 비교 (useEffect에서 setState하지 않는 방식)
   const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
   const [prevDiaries, setPrevDiaries] = useState(diaries);
   if (prevSelectedDate !== selectedDate || prevDiaries !== diaries) {

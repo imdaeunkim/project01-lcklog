@@ -1,19 +1,51 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { Diary } from './types/diary';
+import { CHAMPIONS_LIST } from './data/champions';
 import ProfileHeader from "./components/ProfileHeader";
 import SpectateCalendar from "./components/SpectateCalendar";
 import DiaryFeed from "./components/DiaryFeed";
 import DiaryFormModal from "./components/DiaryFormModal";
 
+const STORAGE_KEY = 'lol-diaries';
+
+// 샘플 일기용: 챔피언 id 목록을 실제 저장 형식(game0-blue-1 ...)으로 변환. 1세트만 채움
+function buildSamplePicks(blueIds: string[], redIds: string[]): Diary['pickedChampions'] {
+  const picks: NonNullable<Diary['pickedChampions']> = {};
+  const fill = (team: 'blue' | 'red', ids: string[]) => {
+    ids.forEach((id, idx) => {
+      const champ = CHAMPIONS_LIST.find((c) => c.id === id);
+      if (champ) picks[`game0-${team}-${idx + 1}`] = { name: champ.name, imageUrl: champ.imageUrl };
+    });
+  };
+  fill('blue', blueIds);
+  fill('red', redIds);
+  return picks;
+}
+
+// localStorage에 저장. 용량 초과 등으로 실패하면 false 반환
+function saveToStorage(diaries: Diary[]): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(diaries));
+    return true;
+  } catch (e) {
+    console.error("데이터 저장 중 에러 발생:", e);
+    return false;
+  }
+}
+
 export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [currentYearMonth, setCurrentYearMonth] = useState({ year: 2026, month: 6 });
+  // 캘린더는 오늘이 속한 달부터 표시 (getMonth는 0부터 시작하므로 +1)
+  const [currentYearMonth, setCurrentYearMonth] = useState(() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() + 1 };
+  });
   const [editingDiary, setEditingDiary] = useState<Diary | null>(null);
   // diary 초기값 세팅
   const [diaries, setDiaries] = useState<Diary[]>(() => {
-    const savedDiaries = localStorage.getItem('lol-diaries');
+    const savedDiaries = localStorage.getItem(STORAGE_KEY);
     if (savedDiaries) {
       try {
         return JSON.parse(savedDiaries);
@@ -32,7 +64,8 @@ export default function App() {
         date: "2026.06.14",
         content: "2세트 한타에서 역전당할 뻔했는데 미드 갱킹 한 번으로 분위기 완전히 가져왔다. 현장에서 보니까 함성이 진짜 미쳤음. 오늘 직관 온 보람 100%. 페이커 갈리오 궁 들어가는 순간 소름 돋았다 진짜.",
         pom: "Faker",
-        pickedChampions: ["Aatrox", "LeeSin", "Taliyah", "Senna", "Nautilus", "Kenia", "Sejuani", "Azir", "Lucian", "Nami"]
+        matchFormat: 3,
+        pickedChampions: buildSamplePicks(["Aatrox", "LeeSin", "Taliyah", "Senna", "Nautilus"], ["Jax", "Sejuani", "Azir", "Lucian", "Nami"])
       },
       {
         id: 2,
@@ -43,14 +76,11 @@ export default function App() {
         date: "2026.06.11",
         content: "한화생명전 짜릿한 셧아웃 승리! 구마유시 바루스 킬각 잡는 피지컬 보고 입이 떡 벌어졌다. 좌석 시야도 너무 좋았고 직관 전승 신화는 계속된다 후후.",
         pom: "Gumayusi",
-        pickedChampions: ["Gnar", "Viego", "Azir", "Varus", "Ashe", "Jax", "Maokai", "Taliyah", "Kalista", "Rell"]
+        matchFormat: 3,
+        pickedChampions: buildSamplePicks(["Gnar", "Viego", "Azir", "Varus", "Ashe"], ["Jax", "Maokai", "Taliyah", "Kalista", "Rell"])
       }
     ];
   });
-
-  useEffect(() => {
-    localStorage.setItem('lol-diaries', JSON.stringify(diaries));
-  }, [diaries]);
 
   // 수정 버튼 클릭 시 모달을 수정 모드로 오픈하는 함수
   const handleOpenEditModal = (diary: Diary) => {
@@ -60,13 +90,17 @@ export default function App() {
 
   // 저장 버튼 클릭 시
   const handleSaveDiary = (diaryData: Diary) => {
-    if (editingDiary) {
-      // 수정 
-      setDiaries(diaries.map(d => d.id === editingDiary.id ? diaryData : d));
-    } else {
-      // 신규 작성 
-      setDiaries([diaryData, ...diaries]);
+    const nextDiaries = editingDiary
+      ? diaries.map(d => d.id === editingDiary.id ? diaryData : d) // 수정
+      : [diaryData, ...diaries]; // 신규 작성
+
+    // 저장소에 먼저 저장해 보고, 성공했을 때만 화면에 반영.
+    // 실패하면 모달을 닫지 않아서 작성한 내용이 그대로 남음
+    if (!saveToStorage(nextDiaries)) {
+      alert("저장 공간이 부족해서 저장하지 못했습니다. 사진 수를 줄이거나 다른 일기의 사진을 지운 뒤 다시 시도해 주세요.");
+      return;
     }
+    setDiaries(nextDiaries);
     setIsModalOpen(false);
     setEditingDiary(null); // 수정 상태 초기화
   };
@@ -128,7 +162,7 @@ export default function App() {
         <Plus className="size-6 stroke-[3]" />
       </button>
 
-      {/* 열려 있을 때만 그린다. key가 바뀌면(다른 일기 수정) 모달을 새로 만들어 초기값을 다시 채운다 */}
+      {/* 열려 있을 때만 렌더링. key가 바뀌면(다른 일기 수정) 모달을 새로 만들어 초기값을 다시 채움 */}
       {isModalOpen && (
         <DiaryFormModal 
           key={editingDiary?.id ?? 'new'}
