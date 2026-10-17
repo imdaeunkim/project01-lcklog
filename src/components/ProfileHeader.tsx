@@ -1,30 +1,22 @@
 import type { Diary } from '../types/diary';
-import { Award, Percent, Flame } from 'lucide-react';
+import { Award, Percent, Flame, CircleHelp } from 'lucide-react';
 import { TIER_ICONS } from '../assets/tiers/tierIndex';
-
+import { getWinStats } from '../utils/matchResult';
+import {getTeamName} from '../data/teams';
 interface ProfileHeaderProps {
   diaries: Diary[]; 
   nickname?: string;
   tagline?: string;
-  mostTeam?: string;
+  myTeam: string;
 }
 export default function ProfileHeader({
   diaries,
   nickname = "vinaka",
-  tagline = "kr1",
-  mostTeam = "HLE",
+  tagline = "kr1",  
+  myTeam,
 }: ProfileHeaderProps) {
   
-  //총 직관 횟수
-  const myAttendanceCount = diaries.length;
-
-  // 총 직관 승 수
-  const winMatches = diaries.filter(d => d.result === "WIN").length;
-
-  // 직관 승률 계산 (승률 = 승 수 / 총 직관 횟수 * 100)
-  const attendanceRate = myAttendanceCount > 0 
-    ? Math.floor((winMatches / myAttendanceCount) * 100) 
-    : 0;
+  const { total, wins, rate } = getWinStats(diaries, myTeam);
 
   // 승률 기반 직관 티어 판독
   // 값은 아래 if/else에서 항상 정해짐
@@ -32,27 +24,27 @@ export default function ProfileHeader({
   let tierIcon: string;
   let tierColor: string;
 
-if (myAttendanceCount === 0) {
+if (total === 0) {
   tierName = "UNRANKED";
   tierIcon = TIER_ICONS.UNRANKED; 
   tierColor = "text-[#94a3b8]";
 } 
-else if (attendanceRate === 0) {
+else if (rate === 0) {
   tierName = "IRON";
   tierIcon = TIER_ICONS.IRON; 
   tierColor = "text-[#71717a]";
 } 
-else if (attendanceRate >= 80) {
+else if (rate >= 80) {
   tierName = "CHALLENGER";
   tierIcon = TIER_ICONS.CHALLENGER;
   tierColor = "text-[#38bdf8] font-extrabold animate-pulse";
 } 
-else if (attendanceRate >= 50) {
+else if (rate >= 50) {
   tierName = "DIAMOND";
   tierIcon = TIER_ICONS.DIAMOND;
   tierColor = "text-[#38bdf8]";
 } 
-else if (attendanceRate >= 30) {
+else if (rate >= 30) {
   tierName = "GOLD";
   tierIcon = TIER_ICONS.GOLD;
   tierColor = "text-[#facc15]";
@@ -74,7 +66,7 @@ else {
           <span className="text-3xl">🧙‍♂️</span>
         </div>
         <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#c8aa6e] text-[#0a1428] text-xs font-bold px-2 py-0.5 rounded-full border border-[#0a1428] whitespace-nowrap">
-          Lv.{15 + myAttendanceCount}
+          Lv.{15 + diaries.length}
         </span>
       </div>
       
@@ -93,7 +85,7 @@ else {
           </div>
           
           <span className="text-xs text-[#616c7f] font-normal md:ml-1">
-            (직관 {myAttendanceCount}회 중 {winMatches}승 · 승률 {attendanceRate}%)
+            (직관 {total}회 중 {wins}승 · 승률 {rate}%)
           </span>
         </div>
       </div>
@@ -103,20 +95,33 @@ else {
           <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center">
             <Award className="size-5 text-[#38bdf8] mb-1" />
             <span className="text-[11px] text-[#616c7f] font-bold block">올해 직관</span>
-            <span className="text-base font-black text-white">{myAttendanceCount}회</span>
+            <span className="text-base font-black text-white">{diaries.length}회</span>
           </div>
 
           <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center">
             <Percent className="size-5 text-[#fbbf24] mb-1" />
+            <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-[#616c7f] font-bold block">직관 승률</span>
-            <span className="text-base font-black text-white">{attendanceRate}%</span>
+            <span className="relative group cursor-help">
+              <CircleHelp className="size-4 text-[#808080]" />
+
+              {/* 말풍선: 평소엔 숨김, 부모(group)에 마우스를 올리면 표시 */}
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                   invisible opacity-0 group-hover:visible group-hover:opacity-80 transition-opacity
+                   whitespace-nowrap rounded-md border border-[#c8aa6e] bg-[#0a1428] 
+                   px-2.5 py-1.5 text-[11px] font-bold text-[#f0e6d2] shadow-lg z-20">
+              승률은 응원팀 경기 기준으로 계산돼요
+              </span>
+            </span>
+            </div>
+            <span className="text-base font-black text-white">{rate}%</span>
           </div>
 
           <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center relative overflow-hidden group">
             <Flame className="size-5 text-[#f43f5e] mb-1" />
             <span className="text-[11px] text-[#616c7f] font-bold block">모스트 팀</span>
             <span className="text-sm font-black px-2 py-0.5 rounded bg-[#f43f5e] text-white mt-0.5 shadow-sm">
-              {mostTeam}
+              { getTeamName(myTeam) }
             </span>
           </div>
         </div>

@@ -6,8 +6,10 @@ import ProfileHeader from "./components/ProfileHeader";
 import SpectateCalendar from "./components/SpectateCalendar";
 import DiaryFeed from "./components/DiaryFeed";
 import DiaryFormModal from "./components/DiaryFormModal";
+import TeamSelectModal from './components/TeamSelectModal';
 
-const STORAGE_KEY = 'lol-diaries';
+const STORAGE_KEY = 'lol-diaries-v2';
+const MY_TEAM_KEY = 'lol-my-team';
 
 // 샘플 일기용: 챔피언 id 목록을 실제 저장 형식(game0-blue-1 ...)으로 변환. 1세트만 채움
 function buildSamplePicks(blueIds: string[], redIds: string[]): Diary['pickedChampions'] {
@@ -57,30 +59,27 @@ export default function App() {
     return [
       {
         id: 1,
-        match: "T1 vs DK",
-        score: "2:1",
-        result: "WIN",
+        date: "2026.10.03",
+        match: { id: '2026.10.03-1', date: '2026.10.03', teamA: 'T1', teamB: 'DK', scoreA: 2, scoreB: 1, format: 3 },
         location: "롤파크 (LoL PARK)",
-        date: "2026.06.14",
         content: "2세트 한타에서 역전당할 뻔했는데 미드 갱킹 한 번으로 분위기 완전히 가져왔다. 현장에서 보니까 함성이 진짜 미쳤음. 오늘 직관 온 보람 100%. 페이커 갈리오 궁 들어가는 순간 소름 돋았다 진짜.",
         pom: "Faker",
-        matchFormat: 3,
         pickedChampions: buildSamplePicks(["Aatrox", "LeeSin", "Taliyah", "Senna", "Nautilus"], ["Jax", "Sejuani", "Azir", "Lucian", "Nami"])
       },
       {
         id: 2,
-        match: "T1 vs HLE",
-        score: "2:0",
-        result: "WIN",
-        location: "인스파이어 아레나",
         date: "2026.06.11",
+        match: { id: '2026.06.11-1', date: '2026.06.11', teamA: 'T1', teamB: 'HLE', scoreA: 2, scoreB: 0, format: 3 },
+        location: "인스파이어 아레나",
         content: "한화생명전 짜릿한 셧아웃 승리! 구마유시 바루스 킬각 잡는 피지컬 보고 입이 떡 벌어졌다. 좌석 시야도 너무 좋았고 직관 전승 신화는 계속된다 후후.",
         pom: "Gumayusi",
-        matchFormat: 3,
         pickedChampions: buildSamplePicks(["Gnar", "Viego", "Azir", "Varus", "Ashe"], ["Jax", "Maokai", "Taliyah", "Kalista", "Rell"])
       }
     ];
   });
+
+  const [myTeam, setMyTeam] = useState<string | null>(() => localStorage.getItem(MY_TEAM_KEY));
+
 
   // 수정 버튼 클릭 시 모달을 수정 모드로 오픈하는 함수
   const handleOpenEditModal = (diary: Diary) => {
@@ -111,6 +110,15 @@ export default function App() {
     setEditingDiary(null); 
   };
 
+  const handleSelectTeam = (teamId : string) => {
+    localStorage.setItem(MY_TEAM_KEY, teamId);
+    setMyTeam(teamId);
+  };
+
+  if (!myTeam) {
+      return <TeamSelectModal onSelect={handleSelectTeam} />;
+  } 
+
   return (
     <div className="lck-root min-h-screen relative bg-[#f3f4f6]">
       <div className="sticky top-0 z-10 border-b border-[#c8aa6e] bg-[#0a1428] text-[#f0e6d2] shadow-md">
@@ -130,7 +138,7 @@ export default function App() {
       </div>
       
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
-        <ProfileHeader diaries={diaries} />
+        <ProfileHeader diaries={diaries} myTeam={myTeam} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <div className="lg:col-span-2">
@@ -140,6 +148,7 @@ export default function App() {
               onSelectDate={setSelectedDate} 
               currentYearMonth={currentYearMonth}
               setCurrentYearMonth={setCurrentYearMonth}
+              myTeam={myTeam}
             />
           </div>
           <div className="lg:col-span-3">
@@ -148,6 +157,7 @@ export default function App() {
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
               onEdit={handleOpenEditModal} 
+              myTeam={myTeam}
             />
           </div>
         </div>
@@ -169,6 +179,7 @@ export default function App() {
           onClose={handleCloseModal} 
           onSave={handleSaveDiary} 
           editingDiary={editingDiary}
+          myTeam={myTeam}
         />
       )}
     </div>
