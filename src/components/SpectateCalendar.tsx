@@ -1,23 +1,30 @@
 import React from 'react';
 import type { Diary } from '../types/diary'; 
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getMyResult, getWinStats } from '../utils/matchResult';
+import ResultBadge from './ResultBadge';
 
 interface SpectateCalendarProps {
-  diaries: Diary[]; 
+  diaries: Diary[];
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   currentYearMonth: { year: number; month: number };
-  setCurrentYearMonth: React.Dispatch<React.SetStateAction<{ year: number; month: number }>>;}
+  setCurrentYearMonth: React.Dispatch<React.SetStateAction<{ year: number; month: number }>>;
+  myTeam: string;
+}
 
-export default function SpectateCalendar({ 
+export default function SpectateCalendar({
   diaries,
-  selectedDate, 
-  onSelectDate, 
-  currentYearMonth, 
-  setCurrentYearMonth 
+  selectedDate,
+  onSelectDate,
+  currentYearMonth,
+  setCurrentYearMonth,
+  myTeam,
 }: SpectateCalendarProps) {
-  
+
   const { year, month } = currentYearMonth;
+  // 하단 승요 지수. 내 팀 경기만으로 계산
+  const { total, wins, losses, rate } = getWinStats(diaries, myTeam);
 
   const getDaysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
   const getFirstDayOfWeek = (y: number, m: number) => new Date(y, m - 1, 1).getDay();
@@ -103,8 +110,14 @@ export default function SpectateCalendar({
 
           const matchedDiary = diaries.find(d => d.date === currentDayStr);
 
-          const isWin = matchedDiary?.result === 'WIN';
-          const isLose = matchedDiary?.result === 'LOSE';
+          const match = matchedDiary?.match;
+          const result = match ? getMyResult(match, myTeam) : null;
+          const isWin = result === 'WIN';
+          const isLose = result === 'LOSE';
+          // 내 팀 경기면 상대 팀과 내 팀 기준 스코어(내 점수:상대 점수)
+          const isMyTeamA = match?.teamA === myTeam;
+          const opponent = isMyTeamA ? match?.teamB : match?.teamA;
+          const myScoreText = match ? (isMyTeamA ? `${match.scoreA}:${match.scoreB}` : `${match.scoreB}:${match.scoreA}`) : '';
 
           return (
             <div 
@@ -120,21 +133,25 @@ export default function SpectateCalendar({
                 {dayNum}
               </span>
               
-              {matchedDiary && (
+              {match && (
                 <div className="w-full flex flex-col gap-0.5 mt-1">
                   {isWin ? (
                     <div className="bg-[#ecf2ff] border border-[#b3ccff] rounded px-1 py-0.5 text-center">
-                      <span className="text-[9px] font-black text-[#2255cc] block leading-none">W · vs {matchedDiary.match.split('vs')[1]}</span>
-                      <span className="text-[8px] text-[#4477ee] block font-bold mt-0.5">{matchedDiary.score}</span>
+                      <span className="text-[9px] font-black text-[#2255cc] leading-none flex items-center justify-center gap-0.5">
+                        <ResultBadge result={result} size="sm" /> vs {opponent}
+                      </span>
+                      <span className="text-[8px] text-[#4477ee] block font-bold mt-0.5">{myScoreText}</span>
                     </div>
                   ) : isLose ? (
                     <div className="bg-[#fff0f2] border border-[#ffd0d6] rounded px-1 py-0.5 text-center">
-                      <span className="text-[9px] font-black text-[#d93846] block leading-none">L · vs {matchedDiary.match.split('vs')[1]}</span>
-                      <span className="text-[8px] text-[#e05260] block font-bold mt-0.5">{matchedDiary.score}</span>
+                      <span className="text-[9px] font-black text-[#d93846] leading-none flex items-center justify-center gap-0.5">
+                        <ResultBadge result={result} size="sm" /> vs {opponent}
+                      </span>
+                      <span className="text-[8px] text-[#e05260] block font-bold mt-0.5">{myScoreText}</span>
                     </div>
                   ) : (
                     <div className="bg-[#f3f4f6] border border-[#e5e7eb] rounded px-1 py-0.5 text-center">
-                      <span className="text-[9px] font-bold text-[#6b7280] block leading-none">{matchedDiary.match}</span>
+                      <span className="text-[9px] font-bold text-[#6b7280] block leading-none">{match.teamA} vs {match.teamB}</span>
                     </div>
                   )}
                 </div>
@@ -150,11 +167,11 @@ export default function SpectateCalendar({
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-[#6b7280]">승요 지수 🧚‍♀️</span>
             <span className="text-[10px] bg-[#f3f4f6] text-[#9ca3af] px-1.5 py-0.5 rounded font-bold">
-              총 {diaries.length}전 {diaries.filter(d => d.result === 'WIN').length}승
+              총 {total}전 {wins}승
             </span>
           </div>
           <span className="text-sm font-black text-[#2255cc]">
-            {diaries.length > 0 ? Math.floor((diaries.filter(d => d.result === 'WIN').length / diaries.length) * 100) : 0}%
+            {rate}%
           </span>
         </div>
 
@@ -162,13 +179,13 @@ export default function SpectateCalendar({
           <div 
             className="h-full bg-[#2255cc] transition-all duration-700 ease-out" 
             style={{ 
-              width: `${diaries.length > 0 ? (diaries.filter(d => d.result === 'WIN').length / diaries.length) * 100 : 0}%` 
+              width: `${total > 0 ? (wins / total) * 100 : 0}%`
             }}
           ></div>
           <div 
             className="h-full bg-[#e05260] transition-all duration-700 ease-out opacity-80" 
             style={{ 
-              width: `${diaries.length > 0 ? (diaries.filter(d => d.result === 'LOSE').length / diaries.length) * 100 : 0}%` 
+              width: `${total > 0 ? (losses / total) * 100 : 0}%`
             }}
           ></div>
         </div>

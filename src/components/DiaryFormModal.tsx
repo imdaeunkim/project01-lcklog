@@ -1,8 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, Map as MapIcon, Image as ImageIcon, Crosshair } from 'lucide-react';
 import { CHAMPIONS_LIST, CHAMPIONS_BY_POSITION } from "../data/champions";
 import type { Champion } from "../data/champions";
-import type { Diary } from "../types/diary";
+import type { Diary, Match } from "../types/diary";
+import { getMatchesByDate } from "../data/matches";
+import { getMyResult } from "../utils/matchResult";
+import ResultBadge from "./ResultBadge";
 import imgTop from '../assets/positions/top.png';
 import imgJungle from '../assets/positions/jungle.png';
 import imgMid from '../assets/positions/mid.png';
@@ -15,6 +18,7 @@ interface DiaryFormModalProps {
   onClose: () => void;
   onSave: (diary: Diary) => void;
   editingDiary: Diary | null;
+  myTeam: string;
 }
 
 // 신규 작성 시 날짜 기본값: 오늘 (input type="date" 형식 YYYY-MM-DD)
@@ -26,13 +30,10 @@ function getTodayInputDate() {
   return `${y}-${m}-${d}`;
 }
 
-// 수정 모드에서 세트 수 복원: 저장된 matchFormat을 사용,
-// 없으면(예전 일기) 4·5세트(game3, game4) 밴픽이 있는지로 추정
-function getInitialMatchFormat(diary: Diary | null): 3 | 5 {
-  if (!diary) return 3;
-  if (diary.matchFormat) return diary.matchFormat;
-  const hasGame4or5 = Object.keys(diary.pickedChampions ?? {}).some((key) => /^game[34]-/.test(key));
-  return hasGame4or5 ? 5 : 3;
+// 내 팀 경기를 앞으로. 나머지는 원래 순서 유지 (sort는 같은 값끼리 순서를 바꾸지 않음)
+function sortMyTeamFirst(matches: Match[], myTeam: string): Match[] {
+  const isMine = (m: Match) => (m.teamA === myTeam || m.teamB === myTeam ? 1 : 0);
+  return [...matches].sort((a, b) => isMine(b) - isMine(a));
 }
 
 interface ActiveSlot {
@@ -41,8 +42,7 @@ interface ActiveSlot {
   boxIndex: number;
 }
 
-export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryFormModalProps) {
-  const [matchFormat, setMatchFormat] = useState<3 | 5>(() => getInitialMatchFormat(editingDiary));
+export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }: DiaryFormModalProps) {
   const [selectedPosition, setSelectedPosition] = useState<Position>("ALL");
 
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null);
@@ -52,9 +52,34 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
   );
 
   const [date, setDate] = useState(() => editingDiary ? editingDiary.date.replace(/\./g, '-') : getTodayInputDate());
-  const [match, setMatch] = useState(editingDiary?.match ?? 'T1 vs DK');
-  const [score, setScore] = useState(editingDiary && editingDiary.score !== "0:0" ? editingDiary.score : '');
-  const [result, setResult] = useState<Diary['result']>(editingDiary?.result ?? 'WIN');
+  const dotDate = date.replace(/-/g, '.'); // 경기 데이터·Diary.date와 같은 "YYYY.MM.DD" 형식
+
+  // 고른 날짜의 경기 목록. loadedDate가 지금 날짜와 다르면 아직 불러오는 중
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [loadedDate, setLoadedDate] = useState<string | null>(null);
+  const isLoadingMatches = loadedDate !== dotDate;
+  // 수정 모드면 저장된 경기, 신규면 목록을 불러온 뒤 첫 경기로 채움
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(editingDiary?.match ?? null);
+
+  // 날짜가 바뀔 때마다 경기 목록을 다시 불러옴
+  useEffect(() => {
+    let ignore = false; // 응답 전에 날짜가 또 바뀌면 이전 응답은 버림
+    getMatchesByDate(dotDate).then((list) => {
+      if (ignore) return;
+      const sorted = sortMyTeamFirst(list, myTeam);
+      setMatches(sorted);
+      setLoadedDate(dotDate);
+      // 같은 날짜의 경기를 이미 골라 둔 상태(수정 모드)면 유지, 아니면 첫 경기 선택
+      setSelectedMatch((prev) => (prev && prev.date === dotDate ? prev : sorted[0] ?? null));
+    });
+    return () => { ignore = true; };
+  }, [dotDate, myTeam]);
+
+  // 저장된 경기가 지금 목록에 없을 수 있어서(예: 샘플 일기) 선택지에 따로 추가
+  const matchOptions = selectedMatch && !matches.some((m) => m.id === selectedMatch.id)
+    ? [selectedMatch, ...matches]
+    : matches;
+  const gameCount = selectedMatch?.format ?? 0;
   const [location, setLocation] = useState(editingDiary && editingDiary.location !== "미지정 장소" ? editingDiary.location : '');
   const [content, setContent] = useState(editingDiary?.content ?? '');
   const [pom, setPom] = useState(editingDiary && editingDiary.pom !== "미지정" ? editingDiary.pom : '');
@@ -125,22 +150,32 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
   };
 
   const handleSubmit = () => {
+    // 날짜를 바꾼 직후에는 selectedMatch가 아직 이전 날짜의 경기일 수 있음
+    if (isLoadingMatches || !selectedMatch) {
+      alert("직관한 경기를 선택해 주세요!");
+      return;
+    }
     if (!content.trim()) {
       alert("오늘의 직관 일기를 작성해 주세요!");
       return;
     }
 
+    // 경기의 세트 수보다 뒤 세트의 밴픽은 버림 (예: 5판 경기를 골랐다가 3판 경기로 바꾼 경우)
+    const picksInFormat = Object.fromEntries(
+      Object.entries(selectedChamps).filter(([key]) => {
+        const gameIdx = Number(key.match(/^game(\d+)-/)?.[1]);
+        return gameIdx < selectedMatch.format;
+      })
+    );
+
     const newDiary: Diary = {
       id: editingDiary ? editingDiary.id : Date.now(),
-      match: match,
-      score: score.trim() || "0:0", 
-      result: result,               
+      match: selectedMatch,
       location: location || "미지정 장소",
-      date: date.replace(/-/g, '.'),
+      date: dotDate,
       content: content,
       pom: pom || "미지정",
-      matchFormat: matchFormat,
-      pickedChampions: selectedChamps,
+      pickedChampions: picksInFormat,
       image: uploadedImages[representativeIndex] || undefined, 
       images: uploadedImages,
       representativeIndex: representativeIndex
@@ -180,35 +215,37 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-[#6b7280] mb-1">오늘의 매치업</label>
-                <select 
-                  value={match}
-                  onChange={(e) => setMatch(e.target.value)}
-                  className="w-full border border-[#d1d5db] rounded-md p-2.5 text-sm focus:outline-none focus:border-[#c8aa6e] font-bold"
-                >
-                  <option value="T1 vs DK" className="font-bold text-[#2255cc]">⭐ [오늘] T1 vs DK</option>
-                  <option value="GEN vs HLE">GEN vs HLE</option>
-                  <option value="KT vs KDF">KT vs KDF</option>
-                </select>
+                {isLoadingMatches ? (
+                  <div className="w-full border border-[#d1d5db] rounded-md p-2.5 text-sm font-bold text-[#9ca3af]">경기 불러오는 중…</div>
+                ) : matchOptions.length === 0 ? (
+                  <div className="w-full border border-dashed border-[#d1d5db] rounded-md p-2.5 text-sm font-bold text-[#9ca3af]">이 날짜에는 경기가 없음</div>
+                ) : (
+                  <select
+                    value={selectedMatch?.id ?? ''}
+                    onChange={(e) => setSelectedMatch(matchOptions.find((m) => m.id === e.target.value) ?? null)}
+                    className="w-full border border-[#d1d5db] rounded-md p-2.5 text-sm focus:outline-none focus:border-[#c8aa6e] font-bold"
+                  >
+                    {matchOptions.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {getMyResult(m, myTeam) ? '⭐ ' : ''}{m.teamA} vs {m.teamB} (BO{m.format})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-[#6b7280] mb-1">최종 결과</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="예: 2:1" 
-                    value={score}
-                    onChange={(e) => setScore(e.target.value)}
-                    className="w-1/2 border border-[#d1d5db] rounded-md p-2.5 text-sm focus:outline-none focus:border-[#c8aa6e] text-center font-black" 
-                  />
-                  <select 
-                    value={result}
-                    onChange={(e) => setResult(e.target.value as Diary['result'])}
-                    className="w-1/2 border border-[#d1d5db] rounded-md p-2.5 text-sm focus:outline-none focus:border-[#c8aa6e] font-bold"
-                  >
-                    <option value="WIN" className="text-[#2255cc]">WIN</option>
-                    <option value="LOSE" className="text-[#d93846]">LOSE</option>
-                  </select>
+                {/* 경기를 고르면 자동으로 표시. 내 팀 경기면 승패 아이콘 함께 표시 */}
+                <div className="flex h-[42px] items-center justify-center gap-2 border border-[#e5e7eb] bg-[#f8f9fa] rounded-md text-sm font-black">
+                  {selectedMatch && !isLoadingMatches ? (
+                    <>
+                      <span>{selectedMatch.teamA} {selectedMatch.scoreA} : {selectedMatch.scoreB} {selectedMatch.teamB}</span>
+                      <ResultBadge result={getMyResult(selectedMatch, myTeam)} />
+                    </>
+                  ) : (
+                    <span className="text-[#9ca3af]">-</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -222,10 +259,9 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
                 <h4 className="text-sm font-black text-[#0a1428]">세트별 챔피언 픽</h4>
                 <span className="text-[10px] bg-[#f3f4f6] text-[#6b7280] px-1.5 py-0.5 rounded font-bold">선택</span>
               </div>
-              <div className="flex bg-[#f3f4f6] rounded-lg p-1">
-                <button onClick={() => setMatchFormat(3)} className={`text-xs font-bold px-3 py-1 rounded-md transition-colors ${matchFormat === 3 ? 'bg-white shadow-sm text-[#111111]' : 'text-[#6b7280]'}`}>BO3</button>
-                <button onClick={() => setMatchFormat(5)} className={`text-xs font-bold px-3 py-1 rounded-md transition-colors ${matchFormat === 5 ? 'bg-white shadow-sm text-[#111111]' : 'text-[#6b7280]'}`}>BO5</button>
-              </div>
+              {selectedMatch && (
+                <span className="text-xs font-bold text-[#6b7280] bg-[#f3f4f6] rounded-lg px-3 py-1">BO{selectedMatch.format}</span>
+              )}
             </div>
 
             <div className="bg-[#f8f9fa] border border-[#e5e7eb] rounded-lg p-4 flex flex-col gap-4">
@@ -235,7 +271,10 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary }: DiaryF
               </div>
               
               <div className="flex flex-col gap-3">
-                {Array.from({ length: matchFormat }).map((_, gameIdx) => (
+                {gameCount === 0 && (
+                  <p className="text-center text-xs font-bold text-[#9ca3af] py-2">경기를 먼저 선택해 주세요</p>
+                )}
+                {Array.from({ length: gameCount }).map((_, gameIdx) => (
                   <div key={gameIdx} className="flex items-center justify-between bg-white border border-[#e5e7eb] p-2 rounded-md">
                     
                     <div className="flex gap-1.5">

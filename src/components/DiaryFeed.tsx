@@ -1,21 +1,29 @@
 import { useState } from 'react';
 import type { Diary } from '../types/diary';
 import { MapPin, Trophy, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { getMyResult } from '../utils/matchResult';
+import ResultBadge from './ResultBadge';
 
 interface DiaryFeedProps {
-  diaries: Diary[]; 
+  diaries: Diary[];
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
-  onEdit: (diary: Diary) => void; 
+  onEdit: (diary: Diary) => void;
+  myTeam: string;
 }
 
-export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit }: DiaryFeedProps) {
+export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit, myTeam }: DiaryFeedProps) {
   const [activeImagePopup, setActiveImagePopup] = useState<string | null>(null);
+  // true면 내 팀이 출전한 경기의 일기만 표시
+  const [onlyMyTeam, setOnlyMyTeam] = useState(false);
 
-  const filteredDiaries = diaries.filter(diary => {
-    if (!selectedDate) return true;
-    return diary.date === selectedDate;
+  // 날짜 필터 + 내 팀 필터 적용
+  const filterDiaries = (myTeamOnly: boolean) => diaries.filter(diary => {
+    if (selectedDate && diary.date !== selectedDate) return false;
+    if (myTeamOnly && getMyResult(diary.match, myTeam) === null) return false;
+    return true;
   });
+  const filteredDiaries = filterDiaries(onlyMyTeam);
 
   // 처음에는 목록의 첫 번째 카드를 펼침
   const [expandedId, setExpandedId] = useState<number | null>(filteredDiaries[0]?.id ?? null);
@@ -32,6 +40,20 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit 
 
   const handleCardClick = (id: number) => {
     setExpandedId(expandedId === id ? null : id);
+  };
+
+  // 내 팀 필터를 켜고 끌 때도 첫 번째 카드를 펼침
+  const handleToggleMyTeam = () => {
+    const next = !onlyMyTeam;
+    setOnlyMyTeam(next);
+    setExpandedId(filterDiaries(next)[0]?.id ?? null);
+  };
+
+  // 날짜 필터와 내 팀 필터를 모두 해제
+  const handleShowAll = () => {
+    onSelectDate(null);
+    setOnlyMyTeam(false);
+    setExpandedId(diaries[0]?.id ?? null);
   };
 
   const getGameCount = (pickedChamps: Diary['pickedChampions']) => {
@@ -59,6 +81,16 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit 
           </h2>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleToggleMyTeam}
+            className={`text-xs font-bold px-2 py-0.5 rounded-full border transition-colors ${
+              onlyMyTeam
+                ? 'bg-[#0a1428] text-[#f0e6d2] border-[#c8aa6e]'
+                : 'bg-white text-[#6b7280] border-[#d1d5db] hover:border-[#c8aa6e]'
+            }`}
+          >
+            {onlyMyTeam ? `✓ ${myTeam} 경기만` : `${myTeam} 경기만`}
+          </button>
           {selectedDate && (
             <button 
               onClick={() => onSelectDate(null)}
@@ -112,11 +144,12 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit 
                   <div className="flex-1 flex flex-col gap-2 relative pr-8">
                     <div className="flex flex-wrap items-center gap-2 pb-2">
                       <span className="text-xs font-black bg-[#0a1428] border border-[#c8aa6e] px-2 py-0.5 rounded text-[#f0e6d2]">
-                        {diary.match}
+                        {diary.match.teamA} vs {diary.match.teamB}
                       </span>
                       <span className="text-xs font-black text-[#2255cc] bg-[#ecf2ff] px-1.5 py-0.5 rounded">
-                        {diary.score}
+                        {diary.match.scoreA}:{diary.match.scoreB}
                       </span>
+                      <ResultBadge result={getMyResult(diary.match, myTeam)} />
                       <div className="flex items-center gap-1 text-[11px] font-bold text-[#6b7280]">
                         <MapPin className="w-3 h-3 text-[#e84057]" />
                         <span>{diary.location}</span>
@@ -266,10 +299,12 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit 
         ) : (
           <div className="w-full bg-white border border-dashed border-[#d1d5db] rounded-xl py-12 px-4 flex flex-col items-center justify-center text-center gap-3">
             <span className="text-3xl">🏜️</span>
-            <p className="text-sm font-black text-[#0a1428]">{selectedDate}에는 직관 기록이 없습니다.</p>
+            <p className="text-sm font-black text-[#0a1428]">
+              {selectedDate ? `${selectedDate}에는 직관 기록이 없습니다.` : '조건에 맞는 직관 기록이 없습니다.'}
+            </p>
             <p className="text-xs text-gray-400 font-bold">새로운 일기를 작성하거나 전체 일기를 확인해 보세요.</p>
             <button
-              onClick={() => onSelectDate(null)}
+              onClick={handleShowAll}
               className="mt-2 flex items-center gap-1.5 text-xs font-black bg-[#0a1428] text-[#f0e6d2] px-4 py-2 rounded-lg border border-[#c8aa6e] hover:bg-[#121c2c] transition-colors shadow-sm"
             >
               <RefreshCw className="size-3" />
