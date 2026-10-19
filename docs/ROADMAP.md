@@ -3,10 +3,20 @@
 진행 규칙은 `CLAUDE.md`의 "작업 규칙"을 따른다. 한 세션에서는 한 단계만 진행한다.
 목표: 1차 완성과 배포(S0~S3) ~10/17, 최종 완성(S4~S7) ~10/23.
 - 일정 기준(10/17 조정): S2가 10/16에 끝나 일정을 다시 잡음. 10/17에 S3·S4, 10/18은 휴식, 10/23은 예비일.
+- 일정 기준(10/19 조정): S4가 10/19로 밀려 S5~S7을 하루씩 미룸. 예비일(10/23)을 S7에 씀. 최종 완성 목표 10/23은 그대로.
 
-## 현재 단계: S4
+## 현재 단계: S5
 
 ## 다음 세션 메모
+- S4(10/19) 완료. DB 설계는 `docs/db-design.md`에 있다.
+  - Supabase 프로젝트는 만들어졌고 SQL(테이블·GRANT·RLS·트리거)도 실행됨. `.env.local`과 Vercel에 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` 등록 완료(Vercel은 Config 타입). 대시보드 키 이름은 anon이 아니라 publishable.
+  - 프로젝트 Security 설정: Data API 켬, "Automatically expose new tables" 끔, automatic RLS 켬. 그래서 새 테이블은 GRANT를 직접 해야 하고, 남는 `REFERENCES/TRIGGER/TRUNCATE`는 회수해야 한다(문서 8번).
+  - S5에서 할 확인: 로그인한 사용자끼리 서로의 일기가 안 보이는지(RLS) 실제로 시험.
+  - 테이블은 `profiles`(내 팀 `my_team`)와 `diaries` 두 개. 팀·경기 테이블은 두지 않음(이유는 문서 3번).
+  - `match`는 jsonb로 통째로 저장. 선택 항목은 비면 `location`/`pom`은 null, `image_paths`/`picked_champions`는 빈 값.
+  - **설계 원칙: 원하는 것만 써도 되는 간편한 일기.** 필수는 날짜·경기·일기 내용뿐. 비어 있는 선택 항목은 화면에 표시하지 않는다(S6에서 반영).
+  - 환경변수 이름은 `.env.example`에 있다. 실제 값은 `.env.local`(커밋 안 됨)과 Vercel에 둔다.
+  - S5에서 정할 것: 가입 시 `profiles` 행을 만드는 방법(트리거 vs 앱에서 upsert, 문서 8번).
 - S3(10/17) 완료. 데이터 구조가 크게 바뀌었다 (자세한 내용은 CLAUDE.md "아키텍처").
   - 내 팀은 일기 필드가 아니라 사용자 설정값(localStorage `lol-my-team`). **S4 DB 설계 시 users 테이블에 내 팀 컬럼이 필요하다.**
   - Diary의 `match`는 `Match` 객체(`teamA/teamB/scoreA/scoreB/format`), `result`·`score`·`matchFormat` 필드는 없어졌다. 승패와 승률은 `getMyResult`/`getWinStats`로 매번 계산한다.
@@ -65,27 +75,34 @@
 - 완료 조건: 내 팀 기준으로 승패 아이콘과 승요 통계가 표시됨
 - 브라우저 확인(사용자, 10/17): 팀 선택 강제, 경기 목록·자동 스코어·승패 아이콘, 필터, 수정 모드, 승률
 - **1차 완성 체크포인트 (~10/17): 배포된 로컬 저장 버전** (S3 PR 머지 후 배포 URL 확인)
+- 배포 확인 완료(사용자, 10/17): 배포 사이트에서 팀 선택 화면 표시
 
-## S4. Supabase 설계 (10/17)
-- [ ] 테이블 설계 문서(`docs/db-design.md`): users, diaries, 컬럼과 타입
-- [ ] RLS 정책: 자기 일기만 읽고 쓰기
-- [ ] Supabase 프로젝트 생성과 환경변수 설정 (사용자 계정 필요)
+## S4. Supabase 설계 (10/17 → 실제 10/19)
+- [x] 테이블 설계 문서(`docs/db-design.md`): `profiles`(ROADMAP의 users), diaries, 컬럼과 타입
+- [x] RLS 정책: 자기 일기만 읽고 쓰기 (SQL은 문서 5번)
+- [x] Supabase 프로젝트 생성(Seoul), SQL 실행, 환경변수 설정(`.env.local`, Vercel 3개 환경 모두) (사용자, 10/19)
+- [x] (추가) `.gitignore`에 `.env` 추가, `.env.example` 견본 파일
+- [x] (추가) 권한 점검: "expose"를 꺼도 남아 있던 `REFERENCES/TRIGGER/TRUNCATE` 회수, 확인 쿼리 문서화(문서 7번)
+- 확인(10/19): 비로그인 REST 조회 → 401 `permission denied`, 확인 쿼리로 GRANT·RLS·정책 7개·트리거 확인
+- 결정(사용자): 팀 테이블 없음, `match`는 jsonb, 비어 있는 선택 항목은 null/빈 값으로 저장하고 화면에 표시하지 않음
 
-## S5. 소셜 로그인 (10/19)
+## S5. 소셜 로그인 (10/20)
 - [ ] Supabase Auth로 Google 로그인(Kakao는 여유가 있으면)
 - [ ] 로그인/로그아웃 UI, 비로그인 상태 처리
+- [ ] 가입 시 `profiles` 행 생성 방법 결정(트리거 vs 앱에서 upsert), 내 팀을 `profiles.my_team`으로 이전
 
-## S6. 데이터를 DB로 이전 (10/20 ~ 10/21)
+## S6. 데이터를 DB로 이전 (10/21 ~ 10/22)
 - [ ] 일기 CRUD를 localStorage에서 Supabase로 교체
 - [ ] 사진을 base64 대신 Supabase Storage에 업로드
 - [ ] 로딩과 에러 상태 UI
+- [ ] 비어 있는 선택 항목(장소, POM, 사진, 밴픽)은 피드와 캘린더에 표시하지 않음. "미지정" 글자, 회색 대체 이미지, "밴픽 정보 없음" 안내를 없앰. `location`/`pom`은 `"미지정"` 대신 null 저장. 사진 없는 카드 배치는 화면을 보며 결정
 
-## S7. LLM 승요 리포트 (10/22)
+## S7. LLM 승요 리포트 (10/23)
 - [ ] Edge Function에서 LLM 호출 (API 키는 서버에만 둠)
 - [ ] ProfileHeader에 리포트 카드 표시
 - [ ] 실패하거나 지연될 때 기본 통계 카드로 대체하는 UI
 
-## 예비일 (10/23)
+## 예비일 (10/23 → S7에 사용)
 - 밀린 일정 흡수. **최종 완성 체크포인트 (~10/23)**
 
 ## 이후 (10월 이후)
@@ -93,6 +110,8 @@
 - API에 없는 경기를 위한 "직접 입력" 대체 칸 (API 연동 후 결정)
 - 프로필 수정에서 내 팀 변경 (승패·승률은 계산값이라 자동 반영됨)
 - 승패 아이콘을 팀 마스코트·로고로 교체 (`ResultBadge`만 수정)
+- 경기 API나 팀 로고를 붙일 때 `teams`/`matches` 테이블 검토 (일기는 `match_id`로 연결, `docs/db-design.md` 3번)
+- Prettier + prettier-plugin-tailwindcss 도입 (Tailwind 클래스 순서 자동 정렬. 처음 적용할 때 전체 diff가 큼)
 - 앱 확장
 
 ## 발견한 문제 (범위 밖 메모)

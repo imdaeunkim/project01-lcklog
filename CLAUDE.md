@@ -35,7 +35,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-LoL(리그 오브 레전드) e-sports, LCK 경기 직관 기록 다이어리("LCK 직관 다이어리"). 직관한 경기의 결과, 세트별 밴픽, 사진, 일기를 기록하고 직관 승률("승요")을 보여준다. 현재는 백엔드 없이 브라우저에서만 동작하는 React 19 + TypeScript + Vite 단일 페이지 앱이다. 이후 Supabase(DB, 소셜 로그인)와 LLM 리포트를 붙일 예정이며, 단계별 계획은 `docs/ROADMAP.md`에 있다. UI 문구와 코드 주석은 한국어로 쓴다.
+LoL(리그 오브 레전드) e-sports, LCK 경기 직관 기록 다이어리("LCK 직관 다이어리"). 직관한 경기의 결과, 세트별 밴픽, 사진, 일기를 기록하고 직관 승률("승요")을 보여준다. 현재는 백엔드 없이 브라우저에서만 동작하는 React 19 + TypeScript + Vite 단일 페이지 앱이다. 이후 Supabase(DB, 소셜 로그인)와 LLM 리포트를 붙일 예정이며, 단계별 계획은 `docs/ROADMAP.md`, DB 설계(테이블, RLS, 환경변수)는 `docs/db-design.md`에 있다. 환경변수 이름은 `.env.example`에 있고, 실제 값은 커밋되지 않는 `.env.local`에 둔다. `VITE_`로 시작하는 변수는 브라우저에 공개되므로 비밀 키(`service_role`, LLM API 키)를 넣지 않는다.
+
+설계 원칙: 원하는 것만 써도 되는 간편한 일기. 일기의 필수 항목은 날짜·경기·일기 내용뿐이고, 비어 있는 선택 항목(장소, POM, 사진, 밴픽)은 기록 화면에 "미지정"이나 빈 칸으로 표시하지 않는다(지금 코드는 아직 표시함, S6에서 반영). UI 문구와 코드 주석은 한국어로 쓴다.
 
 ## 명령어
 
