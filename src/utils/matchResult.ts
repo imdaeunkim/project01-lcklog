@@ -1,7 +1,8 @@
 import type { Diary, Match } from '../types/diary';
 
-// 내 팀 기준 승패. 내 팀이 출전하지 않은 경기면 null
-export function getMyResult(match: Match, myTeam: string): 'WIN' | 'LOSE' | null {
+// 내 팀 기준 승패. 팀 없음이거나 내 팀이 출전하지 않은 경기면 null
+export function getMyResult(match: Match, myTeam: string | null): 'WIN' | 'LOSE' | null {
+  if (!myTeam) return null;
   if (match.teamA === myTeam) {
     return match.scoreA > match.scoreB ? 'WIN' : 'LOSE';
   }
@@ -11,8 +12,8 @@ export function getMyResult(match: Match, myTeam: string): 'WIN' | 'LOSE' | null
   return null;
 }
 
-// 내 팀 경기만으로 전적·승률 계산
-export function getWinStats(diaries: Diary[], myTeam: string) {
+// 내 팀 경기만으로 전적·승률 계산. 팀 없음이면 0전
+export function getWinStats(diaries: Diary[], myTeam: string | null) {
   let wins = 0 ; let losses = 0;
   for (const diary of diaries) {
     const result = getMyResult(diary.match, myTeam);

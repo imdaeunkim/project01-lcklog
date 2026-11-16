@@ -10,7 +10,7 @@ interface SpectateCalendarProps {
   onSelectDate: (date: string | null) => void;
   currentYearMonth: { year: number; month: number };
   setCurrentYearMonth: React.Dispatch<React.SetStateAction<{ year: number; month: number }>>;
-  myTeam: string;
+  myTeam: string | null; // null이면 팀 없음
 }
 
 export default function SpectateCalendar({
@@ -161,7 +161,8 @@ export default function SpectateCalendar({
         })}
       </div>
 
-      {/*하단 직관 통계 */}
+      {/*하단 직관 통계. 팀 없음이면 숨김 */}
+      {myTeam && (
       <div className="mt-6 pt-5 border-t border-[#e5e7eb]">
         <div className="flex items-end justify-between mb-2">
           <div className="flex items-center gap-1.5">
@@ -196,6 +197,7 @@ export default function SpectateCalendar({
           <span className="text-[#e05260]">L</span>
         </div>
       </div>
+      )}
 
     </div>
   );
