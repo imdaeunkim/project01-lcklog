@@ -9,7 +9,7 @@ interface DiaryFeedProps {
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   onEdit: (diary: Diary) => void;
-  myTeam: string;
+  myTeam: string | null; // null이면 팀 없음
 }
 
 export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit, myTeam }: DiaryFeedProps) {
@@ -17,10 +17,10 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
   // true면 내 팀이 출전한 경기의 일기만 표시
   const [onlyMyTeam, setOnlyMyTeam] = useState(false);
 
-  // 날짜 필터 + 내 팀 필터 적용
+  // 날짜 필터 + 내 팀 필터 적용. 팀 없음이면 내 팀 필터는 무시
   const filterDiaries = (myTeamOnly: boolean) => diaries.filter(diary => {
     if (selectedDate && diary.date !== selectedDate) return false;
-    if (myTeamOnly && getMyResult(diary.match, myTeam) === null) return false;
+    if (myTeamOnly && myTeam && getMyResult(diary.match, myTeam) === null) return false;
     return true;
   });
   const filteredDiaries = filterDiaries(onlyMyTeam);
@@ -81,16 +81,19 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleToggleMyTeam}
-            className={`text-xs font-bold px-2 py-0.5 rounded-full border transition-colors ${
-              onlyMyTeam
-                ? 'bg-[#0a1428] text-[#f0e6d2] border-[#c8aa6e]'
-                : 'bg-white text-[#6b7280] border-[#d1d5db] hover:border-[#c8aa6e]'
-            }`}
-          >
-            {onlyMyTeam ? `✓ ${myTeam} 경기만` : `${myTeam} 경기만`}
-          </button>
+          {/* 팀 없음이면 내 팀 필터 숨김 */}
+          {myTeam && (
+            <button
+              onClick={handleToggleMyTeam}
+              className={`text-xs font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                onlyMyTeam
+                  ? 'bg-[#0a1428] text-[#f0e6d2] border-[#c8aa6e]'
+                  : 'bg-white text-[#6b7280] border-[#d1d5db] hover:border-[#c8aa6e]'
+              }`}
+            >
+              {onlyMyTeam ? `✓ ${myTeam} 경기만` : `${myTeam} 경기만`}
+            </button>
+          )}
           {selectedDate && (
             <button 
               onClick={() => onSelectDate(null)}
@@ -296,6 +299,13 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
               </div>
             );
           })
+        ) : diaries.length === 0 ? (
+          // 일기가 하나도 없을 때 (필터 때문에 비어 보이는 경우와 구분)
+          <div className="w-full bg-white border border-dashed border-[#d1d5db] rounded-xl py-12 px-4 flex flex-col items-center justify-center text-center gap-3">
+            <span className="text-3xl">📝</span>
+            <p className="text-sm font-black text-[#0a1428]">아직 직관 기록이 없어요.</p>
+            <p className="text-xs text-gray-400 font-bold">오른쪽 아래 + 버튼으로 첫 직관을 기록해 보세요.</p>
+          </div>
         ) : (
           <div className="w-full bg-white border border-dashed border-[#d1d5db] rounded-xl py-12 px-4 flex flex-col items-center justify-center text-center gap-3">
             <span className="text-3xl">🏜️</span>

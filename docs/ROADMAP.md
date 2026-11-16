@@ -4,10 +4,22 @@
 목표: 1차 완성과 배포(S0~S3) ~10/17, 최종 완성(S4~S7) ~10/23.
 - 일정 기준(10/17 조정): S2가 10/16에 끝나 일정을 다시 잡음. 10/17에 S3·S4, 10/18은 휴식, 10/23은 예비일.
 - 일정 기준(10/19 조정): S4가 10/19로 밀려 S5~S7을 하루씩 미룸. 예비일(10/23)을 S7에 씀. 최종 완성 목표 10/23은 그대로.
+- 일정 기준(11/16 조정): S5를 10/20에 시작해 11/16에 끝냄. S5 범위가 커져 단계를 하나 늘림(S6 프로필 수정, S7 DB 이전, S8 LLM 리포트). 최종 완성(S8)은 11/20.
 
-## 현재 단계: S5
+## 현재 단계: S6
 
 ## 다음 세션 메모
+- S5(10/20 시작, 11/16 완료). 로그인 필수, 게스트 없음(사용자 결정).
+  - 흐름: 로그인 확인 → `LoginScreen`(Google) → `loadOrCreateProfile`(`src/lib/profile.ts`) → 메인. 처음 로그인하면 무작위 `닉네임#태그` + 팀 없음으로 `profiles` 행을 앱이 insert(트리거 아님).
+  - 프로필 타입은 `src/types/profile.ts`. `myTeam`은 `string | null`이고 null이면 "팀 없음" → 승률·티어·캘린더 통계·"내 팀 경기만" 필터를 숨김. `getMyResult`/`getWinStats`가 null을 처리함.
+  - DB: `profiles`에 `nickname`, `tag`, `nickname_changed_at` 추가(SQL 실행 완료, `docs/db-design.md` 9번). `닉네임#태그` 중복 금지(대소문자 무시), 닉네임 변경은 90일에 한 번(첫 변경은 자유). 둘 다 DB가 막음. 사용자가 SQL Editor로 90일 제한 확인함.
+  - **S6에서 할 것:** 프로필 수정 모달(닉네임#태그, 팀 변경). 중복이면 에러 코드 `23505`, 90일 제한이면 `nickname_change_too_soon` 에러가 옴 → 안내 문구로 바꿔 보여줄 것. 남은 날짜는 `nicknameChangedAt`으로 계산해 미리 안내. 팀 고르는 부분은 `TeamSelectModal.tsx`(지금 안 쓰임)를 재사용하거나 정리.
+  - `UserMenu`(오른쪽 위 메뉴)에 지금은 로그아웃만 있음. S6에서 "프로필 수정", S7에서 "초기화", "회원탈퇴" 추가.
+  - 로그인 사용자의 일기는 아직 localStorage(`lol-diaries-v2`)라서, 같은 브라우저에서는 계정이 달라도 같은 일기가 보임. S7에서 DB로 옮기며 해결.
+  - 샘플 일기를 없앰. 일기가 없으면 피드에 빈 상태 안내.
+  - Supabase 무료 플랜은 오래 안 쓰면 프로젝트가 일시정지됨(11/16에 "Resume project"로 복구). 주소 조회가 안 되면 대시보드부터 확인.
+  - Google OAuth는 "테스트 중" 상태라 Google Cloud의 테스트 사용자만 로그인 가능. 공개 배포 전에 게시(Publish) 필요.
+  - **미확인:** RLS(두 계정이 서로의 `profiles` 행을 못 보는지)는 사용자가 나중에 확인하기로 함. Vercel 배포 사이트에서의 로그인도 아직 확인 안 함.
 - S4(10/19) 완료. DB 설계는 `docs/db-design.md`에 있다.
   - Supabase 프로젝트는 만들어졌고 SQL(테이블·GRANT·RLS·트리거)도 실행됨. `.env.local`과 Vercel에 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` 등록 완료(Vercel은 Config 타입). 대시보드 키 이름은 anon이 아니라 publishable.
   - 프로젝트 Security 설정: Data API 켬, "Automatically expose new tables" 끔, automatic RLS 켬. 그래서 새 테이블은 GRANT를 직접 해야 하고, 남는 `REFERENCES/TRIGGER/TRUNCATE`는 회수해야 한다(문서 8번).
@@ -86,35 +98,48 @@
 - 확인(10/19): 비로그인 REST 조회 → 401 `permission denied`, 확인 쿼리로 GRANT·RLS·정책 7개·트리거 확인
 - 결정(사용자): 팀 테이블 없음, `match`는 jsonb, 비어 있는 선택 항목은 null/빈 값으로 저장하고 화면에 표시하지 않음
 
-## S5. 소셜 로그인 (10/20)
-- [ ] Supabase Auth로 Google 로그인(Kakao는 여유가 있으면)
-- [ ] 로그인/로그아웃 UI, 비로그인 상태 처리
-- [ ] 가입 시 `profiles` 행 생성 방법 결정(트리거 vs 앱에서 upsert), 내 팀을 `profiles.my_team`으로 이전
+## S5. 소셜 로그인 (10/20 → 실제 10/20, 11/16) ✅ (범위 확장: 로그인 필수, 닉네임#태그 프로필, 팀 없음)
+- [x] Supabase Auth로 Google 로그인 (Kakao는 "이후"로)
+- [x] 로그인 화면(`LoginScreen`), 오른쪽 위 메뉴(`UserMenu`)의 로그아웃. 로그인하지 않으면 앱 사용 불가(게스트 없음, 사용자 결정)
+- [x] `profiles` 행 생성: 처음 로그인할 때 앱이 무작위 `닉네임#태그` + 팀 없음으로 insert. 겹치면 다시 뽑음
+- [x] `profiles`에 `nickname`, `tag`, `nickname_changed_at` 추가, `닉네임#태그` 중복 금지, 90일 변경 제한 트리거 (SQL 실행: 사용자, 11/16)
+- [x] 내 팀을 `profiles.my_team`으로 이전(`lol-my-team` 제거). null = 팀 없음 → 승률·티어·통계·내 팀 필터 숨김
+- [x] 샘플 일기 제거, 일기가 없을 때 빈 상태 안내
+- 브라우저 확인(사용자, 11/16): Google 로그인, 무작위 닉네임 표시, 새로고침 유지, 로그아웃 후 재로그인 시 같은 닉네임, 행 삭제 후 재생성
+- DB 확인(사용자, 11/16): 첫 닉네임 변경 성공, 두 번째 변경은 `nickname_change_too_soon`으로 거부
+- [ ] (나중에 사용자) RLS: 두 계정이 서로의 `profiles` 행을 못 보는지
 
-## S6. 데이터를 DB로 이전 (10/21 ~ 10/22)
+## S6. 프로필 수정 (11/17)
+- [ ] `UserMenu`에 "프로필 수정" → 모달에서 닉네임#태그와 팀(팀 없음 포함) 변경
+- [ ] 중복(`23505`), 90일 제한(`nickname_change_too_soon`) 에러를 안내 문구로 표시. 다음 변경 가능 날짜를 미리 안내
+- [ ] `TeamSelectModal.tsx` 재사용 또는 정리
+
+## S7. 데이터를 DB로 이전 (11/18 ~ 11/19)
 - [ ] 일기 CRUD를 localStorage에서 Supabase로 교체
 - [ ] 사진을 base64 대신 Supabase Storage에 업로드
 - [ ] 로딩과 에러 상태 UI
 - [ ] 비어 있는 선택 항목(장소, POM, 사진, 밴픽)은 피드와 캘린더에 표시하지 않음. "미지정" 글자, 회색 대체 이미지, "밴픽 정보 없음" 안내를 없앰. `location`/`pom`은 `"미지정"` 대신 null 저장. 사진 없는 카드 배치는 화면을 보며 결정
+- [ ] `UserMenu`에 "초기화"(내 일기만 모두 삭제, 프로필은 유지)와 "회원탈퇴"(본인 계정만 지우는 DB 함수 + rpc 추천. 사진 Storage도 함께 삭제)
+- [ ] RLS 확인: 두 계정이 서로의 일기를 못 보는지
 
-## S7. LLM 승요 리포트 (10/23)
+## S8. LLM 승요 리포트 (11/20)
 - [ ] Edge Function에서 LLM 호출 (API 키는 서버에만 둠)
 - [ ] ProfileHeader에 리포트 카드 표시
 - [ ] 실패하거나 지연될 때 기본 통계 카드로 대체하는 UI
-
-## 예비일 (10/23 → S7에 사용)
-- 밀린 일정 흡수. **최종 완성 체크포인트 (~10/23)**
+- **최종 완성 체크포인트 (~11/20)**
 
 ## 이후 (10월 이후)
 - 경기 스코어 API 연동 (공식 공개 API가 없어 비공식 API 조사가 필요). 연동 시 `src/data/matches.ts`의 `getMatchesByDate`만 교체
 - API에 없는 경기를 위한 "직접 입력" 대체 칸 (API 연동 후 결정)
-- 프로필 수정에서 내 팀 변경 (승패·승률은 계산값이라 자동 반영됨)
+- Kakao 로그인 (이메일이 없는 사용자 허용 여부는 이때 결정)
+- 닉네임 변경권 구매(90일 제한 해제). 결제 확인은 반드시 서버(Edge Function)에서
 - 승패 아이콘을 팀 마스코트·로고로 교체 (`ResultBadge`만 수정)
 - 경기 API나 팀 로고를 붙일 때 `teams`/`matches` 테이블 검토 (일기는 `match_id`로 연결, `docs/db-design.md` 3번)
 - Prettier + prettier-plugin-tailwindcss 도입 (Tailwind 클래스 순서 자동 정렬. 처음 적용할 때 전체 diff가 큼)
 - 앱 확장
 
 ## 발견한 문제 (범위 밖 메모)
+- 빌드 결과 JS가 500kB를 넘는다는 경고(S5에서 확인, 그 전부터 있었는지는 미확인). 지금은 동작에 문제없음 → 필요하면 코드 분할 검토
 - (다음 작업 후보, 사용자 요청) 챔피언 픽 모달: 한 세트에서 이미 고른 챔피언은 다른 칸에서 회색으로 비활성화
 - 챔피언이 173명이 되어 선택 창 스크롤이 길다 → 이름 검색창 후보
 - (S3에서 해결) BO5에서 4·5세트를 채운 뒤 BO3로 바꿔 저장하면 4·5세트 데이터가 남는 문제 → 저장 시 `match.format`보다 뒤 세트의 밴픽을 버림

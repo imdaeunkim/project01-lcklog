@@ -5,14 +5,14 @@ import { getWinStats } from '../utils/matchResult';
 import {getTeamName} from '../data/teams';
 interface ProfileHeaderProps {
   diaries: Diary[]; 
-  nickname?: string;
-  tagline?: string;
-  myTeam: string;
+  nickname: string;
+  tag: string;
+  myTeam: string | null; // null이면 팀 없음 → 티어·승률 숨김
 }
 export default function ProfileHeader({
   diaries,
-  nickname = "vinaka",
-  tagline = "kr1",  
+  nickname,
+  tag,
   myTeam,
 }: ProfileHeaderProps) {
   
@@ -74,10 +74,11 @@ else {
         {/* 닉네임 + 태그 */}
         <div className="flex items-baseline gap-1.5">
           <h1 className="text-2xl font-black tracking-wide text-white">{nickname}</h1>
-          <span className="text-sm font-bold text-[#616c7f]">#{tagline}</span>
+          <span className="text-sm font-bold text-[#616c7f]">#{tag}</span>
         </div>
-        
-        {/*티어 + 직관 승률*/}
+
+        {/*티어 + 직관 승률. 팀 없음이면 숨김 */}
+        {myTeam && (
         <div className="flex flex-col md:flex-row items-start md:items-center gap-1 mt-1 tracking-wider">
           <div className="flex items-center gap-1.5">
             <img src={tierIcon} className="size-9 object-contain" alt={tierName} />
@@ -88,16 +89,19 @@ else {
             (직관 {total}회 중 {wins}승 · 승률 {rate}%)
           </span>
         </div>
+        )}
       </div>
     </div>
 
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 w-full md:w-auto md:min-w-[360px]">
+        {/* 팀 없음이면 승률 칸이 빠져서 2칸 */}
+        <div className={`grid ${myTeam ? 'grid-cols-3' : 'grid-cols-2'} gap-3 sm:gap-4 w-full md:w-auto md:min-w-[360px]`}>
           <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center">
             <Award className="size-5 text-[#38bdf8] mb-1" />
             <span className="text-[11px] text-[#616c7f] font-bold block">올해 직관</span>
             <span className="text-base font-black text-white">{diaries.length}회</span>
           </div>
 
+          {myTeam && (
           <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center">
             <Percent className="size-5 text-[#fbbf24] mb-1" />
             <div className="flex items-center gap-1.5">
@@ -116,12 +120,13 @@ else {
             </div>
             <span className="text-base font-black text-white">{rate}%</span>
           </div>
+          )}
 
           <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center relative overflow-hidden group">
             <Flame className="size-5 text-[#f43f5e] mb-1" />
             <span className="text-[11px] text-[#616c7f] font-bold block">모스트 팀</span>
             <span className="text-sm font-black px-2 py-0.5 rounded bg-[#f43f5e] text-white mt-0.5 shadow-sm">
-              { getTeamName(myTeam) }
+              { myTeam ? getTeamName(myTeam) : '없음' }
             </span>
           </div>
         </div>

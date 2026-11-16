@@ -11,6 +11,7 @@
     "gen:champions": "node scripts/generate-champions.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-calendar": "^6.0.1",

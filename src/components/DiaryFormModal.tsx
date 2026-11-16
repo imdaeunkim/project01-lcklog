@@ -18,7 +18,7 @@ interface DiaryFormModalProps {
   onClose: () => void;
   onSave: (diary: Diary) => void;
   editingDiary: Diary | null;
-  myTeam: string;
+  myTeam: string | null; // null이면 팀 없음
 }
 
 // 신규 작성 시 날짜 기본값: 오늘 (input type="date" 형식 YYYY-MM-DD)
@@ -31,7 +31,7 @@ function getTodayInputDate() {
 }
 
 // 내 팀 경기를 앞으로. 나머지는 원래 순서 유지 (sort는 같은 값끼리 순서를 바꾸지 않음)
-function sortMyTeamFirst(matches: Match[], myTeam: string): Match[] {
+function sortMyTeamFirst(matches: Match[], myTeam: string | null): Match[] {
   const isMine = (m: Match) => (m.teamA === myTeam || m.teamB === myTeam ? 1 : 0);
   return [...matches].sort((a, b) => isMine(b) - isMine(a));
 }

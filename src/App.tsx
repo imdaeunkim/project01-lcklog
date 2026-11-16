@@ -1,29 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { Plus } from 'lucide-react';
 import type { Diary } from './types/diary';
-import { CHAMPIONS_LIST } from './data/champions';
+import type { Profile } from './types/profile';
+import { supabase } from './lib/supabase';
+import { loadOrCreateProfile } from './lib/profile';
 import ProfileHeader from "./components/ProfileHeader";
 import SpectateCalendar from "./components/SpectateCalendar";
 import DiaryFeed from "./components/DiaryFeed";
 import DiaryFormModal from "./components/DiaryFormModal";
-import TeamSelectModal from './components/TeamSelectModal';
+import LoginScreen from './components/LoginScreen';
+import UserMenu from './components/UserMenu';
 
 const STORAGE_KEY = 'lol-diaries-v2';
-const MY_TEAM_KEY = 'lol-my-team';
-
-// 샘플 일기용: 챔피언 id 목록을 실제 저장 형식(game0-blue-1 ...)으로 변환. 1세트만 채움
-function buildSamplePicks(blueIds: string[], redIds: string[]): Diary['pickedChampions'] {
-  const picks: NonNullable<Diary['pickedChampions']> = {};
-  const fill = (team: 'blue' | 'red', ids: string[]) => {
-    ids.forEach((id, idx) => {
-      const champ = CHAMPIONS_LIST.find((c) => c.id === id);
-      if (champ) picks[`game0-${team}-${idx + 1}`] = { name: champ.name, imageUrl: champ.imageUrl };
-    });
-  };
-  fill('blue', blueIds);
-  fill('red', redIds);
-  return picks;
-}
 
 // localStorage에 저장. 용량 초과 등으로 실패하면 false 반환
 function saveToStorage(diaries: Diary[]): boolean {
@@ -36,7 +25,30 @@ function saveToStorage(diaries: Diary[]): boolean {
   }
 }
 
+// 프로필 불러오기 결과. userId를 같이 기억해서 다른 계정의 결과와 섞이지 않게 함
+interface ProfileState {
+  userId: string;
+  profile: Profile | null; // null이면 실패
+}
+
+// 로그인 확인·프로필 불러오기 중에 보여주는 화면
+function FullScreenMessage({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#0a1428] p-4 text-center text-sm font-bold text-[#f0e6d2]">
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
+  // 로그인 상태. authReady가 false면 아직 확인 중
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const userId = session?.user.id ?? null;
+
+  const [profileState, setProfileState] = useState<ProfileState | null>(null);
+  const [profileRetry, setProfileRetry] = useState(0); // 바꾸면 프로필을 다시 불러옴
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   // 캘린더는 오늘이 속한 달부터 표시 (getMonth는 0부터 시작하므로 +1)
@@ -45,7 +57,7 @@ export default function App() {
     return { year: today.getFullYear(), month: today.getMonth() + 1 };
   });
   const [editingDiary, setEditingDiary] = useState<Diary | null>(null);
-  // diary 초기값 세팅
+  // diary 초기값 세팅. 저장된 일기가 없으면 빈 목록 (샘플 없음)
   const [diaries, setDiaries] = useState<Diary[]>(() => {
     const savedDiaries = localStorage.getItem(STORAGE_KEY);
     if (savedDiaries) {
@@ -55,36 +67,37 @@ export default function App() {
         console.error("데이터 로드 중 에러 발생:", e);
       }
     }
-    //dummy data 
-    return [
-      {
-        id: 1,
-        date: "2026.10.03",
-        match: { id: '2026.10.03-1', date: '2026.10.03', teamA: 'T1', teamB: 'DK', scoreA: 2, scoreB: 1, format: 3 },
-        location: "롤파크 (LoL PARK)",
-        content: "2세트 한타에서 역전당할 뻔했는데 미드 갱킹 한 번으로 분위기 완전히 가져왔다. 현장에서 보니까 함성이 진짜 미쳤음. 오늘 직관 온 보람 100%. 페이커 갈리오 궁 들어가는 순간 소름 돋았다 진짜.",
-        pom: "Faker",
-        pickedChampions: buildSamplePicks(["Aatrox", "LeeSin", "Taliyah", "Senna", "Nautilus"], ["Jax", "Sejuani", "Azir", "Lucian", "Nami"])
-      },
-      {
-        id: 2,
-        date: "2026.06.11",
-        match: { id: '2026.06.11-1', date: '2026.06.11', teamA: 'T1', teamB: 'HLE', scoreA: 2, scoreB: 0, format: 3 },
-        location: "인스파이어 아레나",
-        content: "한화생명전 짜릿한 셧아웃 승리! 구마유시 바루스 킬각 잡는 피지컬 보고 입이 떡 벌어졌다. 좌석 시야도 너무 좋았고 직관 전승 신화는 계속된다 후후.",
-        pom: "Gumayusi",
-        pickedChampions: buildSamplePicks(["Gnar", "Viego", "Azir", "Varus", "Ashe"], ["Jax", "Maokai", "Taliyah", "Kalista", "Rell"])
-      }
-    ];
+    return [];
   });
 
-  const [myTeam, setMyTeam] = useState<string | null>(() => localStorage.getItem(MY_TEAM_KEY));
+  // 로그인·로그아웃 감지. 구독하자마자 현재 로그인 상태도 한 번 알려줌(INITIAL_SESSION)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthReady(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
+  // 로그인한 계정이 바뀌면 프로필을 불러옴 (처음 로그인이면 무작위 닉네임으로 생성)
+  useEffect(() => {
+    if (!userId) return;
+    let ignore = false; // 응답 전에 계정이 바뀌거나 화면이 사라지면 이전 응답은 버림
+    loadOrCreateProfile(userId)
+      .then((profile) => {
+        if (!ignore) setProfileState({ userId, profile });
+      })
+      .catch((e) => {
+        console.error("프로필 로드 중 에러 발생:", e);
+        if (!ignore) setProfileState({ userId, profile: null });
+      });
+    return () => { ignore = true; };
+  }, [userId, profileRetry]);
 
   // 수정 버튼 클릭 시 모달을 수정 모드로 오픈하는 함수
   const handleOpenEditModal = (diary: Diary) => {
-    setEditingDiary(diary); 
-    setIsModalOpen(true);   
+    setEditingDiary(diary);
+    setIsModalOpen(true);
   };
 
   // 저장 버튼 클릭 시
@@ -104,20 +117,47 @@ export default function App() {
     setEditingDiary(null); // 수정 상태 초기화
   };
 
-  //모달 닫을 시 
+  //모달 닫을 시
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setEditingDiary(null); 
+    setEditingDiary(null);
   };
 
-  const handleSelectTeam = (teamId : string) => {
-    localStorage.setItem(MY_TEAM_KEY, teamId);
-    setMyTeam(teamId);
+  // 프로필 불러오기 실패 후 다시 시도
+  const handleRetryProfile = () => {
+    setProfileState(null);
+    setProfileRetry((n) => n + 1);
   };
 
-  if (!myTeam) {
-      return <TeamSelectModal onSelect={handleSelectTeam} />;
-  } 
+  if (!authReady) {
+    return <FullScreenMessage>불러오는 중…</FullScreenMessage>;
+  }
+
+  if (!userId) {
+    return <LoginScreen />;
+  }
+
+  // 지금 계정의 결과가 아직 없으면 불러오는 중
+  if (profileState?.userId !== userId) {
+    return <FullScreenMessage>프로필을 불러오는 중…</FullScreenMessage>;
+  }
+
+  const profile = profileState.profile;
+  if (!profile) {
+    return (
+      <FullScreenMessage>
+        <p>프로필을 불러오지 못했습니다.</p>
+        <button
+          onClick={handleRetryProfile}
+          className="rounded-lg bg-[#c8aa6e] px-4 py-2 text-xs font-black text-[#0a1428]"
+        >
+          다시 시도
+        </button>
+      </FullScreenMessage>
+    );
+  }
+
+  const myTeam = profile.myTeam;
 
   return (
     <div className="lck-root min-h-screen relative bg-[#f3f4f6]">
@@ -131,32 +171,35 @@ export default function App() {
               직관 다이어리
             </span>
           </div>
-          <span className="hidden text-xs text-[#9e9eb1] sm:block font-medium">
-            나만을 위한 하이라이트 직관 기록
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-xs text-[#9e9eb1] sm:block font-medium">
+              나만을 위한 하이라이트 직관 기록
+            </span>
+            <UserMenu profile={profile} />
+          </div>
         </div>
       </div>
-      
+
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
-        <ProfileHeader diaries={diaries} myTeam={myTeam} />
+        <ProfileHeader diaries={diaries} nickname={profile.nickname} tag={profile.tag} myTeam={myTeam} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <SpectateCalendar 
+            <SpectateCalendar
               diaries={diaries}
-              selectedDate={selectedDate} 
-              onSelectDate={setSelectedDate} 
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
               currentYearMonth={currentYearMonth}
               setCurrentYearMonth={setCurrentYearMonth}
               myTeam={myTeam}
             />
           </div>
           <div className="lg:col-span-3">
-            <DiaryFeed 
-              diaries={diaries} 
+            <DiaryFeed
+              diaries={diaries}
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
-              onEdit={handleOpenEditModal} 
+              onEdit={handleOpenEditModal}
               myTeam={myTeam}
             />
           </div>
@@ -174,10 +217,10 @@ export default function App() {
 
       {/* 열려 있을 때만 렌더링. key가 바뀌면(다른 일기 수정) 모달을 새로 만들어 초기값을 다시 채움 */}
       {isModalOpen && (
-        <DiaryFormModal 
+        <DiaryFormModal
           key={editingDiary?.id ?? 'new'}
-          onClose={handleCloseModal} 
-          onSave={handleSaveDiary} 
+          onClose={handleCloseModal}
+          onSave={handleSaveDiary}
           editingDiary={editingDiary}
           myTeam={myTeam}
         />

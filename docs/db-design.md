@@ -25,7 +25,10 @@ Supabase에는 로그인 정보를 담는 `auth.users` 테이블이 이미 있�
 | 컬럼 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `id` | uuid, PK | O | `auth.users.id`와 같은 값. 계정이 지워지면 함께 지워짐 |
-| `my_team` | text | | 내 팀(응원팀) id. 지금의 localStorage `lol-my-team`. null이면 앱이 팀 선택 모달을 띄움 |
+| `nickname` | text | O | 닉네임 3~16자, `#` 불가. 처음 로그인하면 앱이 무작위로 만듦 (S5에서 추가, 9번) |
+| `tag` | text | O | 태그 영문·숫자 3~5자. `닉네임#태그` 조합은 다른 사용자와 겹칠 수 없음 (S5에서 추가) |
+| `my_team` | text | | 내 팀(응원팀) id. null이면 "팀 없음" → 승률·티어를 표시하지 않음 (S5에서 의미 변경) |
+| `nickname_changed_at` | timestamptz | | 마지막 닉네임 변경 시각. null이면 아직 무작위 닉네임 (S5에서 추가) |
 | `created_at` | timestamptz | O | 가입 시각, 기본값 `now()` |
 
 ### diaries: 일기
@@ -256,6 +259,7 @@ create policy "diaries: 내 일기 삭제" on public.diaries
 - **S5:** 가입할 때 `profiles` 행을 만드는 방법을 정한다.
   - 후보 A: `auth.users`에 행이 생길 때 DB 트리거가 `profiles` 행을 자동으로 만든다. 앱 코드가 단순해진다.
   - 후보 B: 앱에서 처음 팀을 고를 때 `profiles`에 upsert한다. 트리거가 없어 구조를 이해하기 쉽다.
+  - **결정(S5): B를 변형.** 처음 로그인할 때 앱이 무작위 닉네임 + 팀 없음으로 `profiles` 행을 insert한다(`src/lib/profile.ts`). 자세한 내용은 9번.
 - **S6:**
   - 일기 CRUD를 Supabase로 교체한다. 날짜 형식 변환(`YYYY.MM.DD` ↔ `YYYY-MM-DD`), 컬럼 이름 변환(`picked_champions` ↔ `pickedChampions`)을 둔다.
   - `Diary` 타입에서 `location`, `pom`을 `string | null`로 바꾸고, `"미지정"` 저장을 없앤다.
@@ -263,3 +267,81 @@ create policy "diaries: 내 일기 삭제" on public.diaries
   - 사진용 Storage 버킷과 정책을 만든다(자기 폴더만 올리고 읽기).
 - **이후:** 경기 API, 팀 로고를 붙일 때 `teams`, `matches` 테이블을 검토한다.
 - **새 테이블을 만들 때마다:** GRANT로 필요한 권한만 열고, 기본으로 남는 `REFERENCES`, `TRIGGER`, `TRUNCATE`를 회수한 뒤 7번 확인 쿼리로 점검한다.
+
+## 9. S5 변경: 로그인 필수, 닉네임#태그 프로필
+
+### 9-1. 결정
+- 로그인해야만 앱을 쓸 수 있다(게스트 없음). 게스트를 두면 DB가 모르는 닉네임을 마음대로 쓸 수 있어 중복 금지가 의미 없어지기 때문이다.
+- 처음 로그인하면 앱이 무작위 `닉네임#태그`(예: `용감한포로#4821`)와 팀 없음(`my_team = null`)으로 `profiles` 행을 만든다. 겹치면 다른 이름으로 다시 시도한다.
+- `닉네임#태그` 조합은 다른 사용자와 겹칠 수 없다(대소문자 구분 없음). RLS 때문에 앱이 남의 프로필을 조회할 수 없으므로, 미리 찾아보지 않고 DB 고유 제약에 맡긴다. 겹치면 에러 코드 `23505`가 온다.
+- 닉네임이나 태그를 바꾸면 90일 동안 다시 못 바꾼다. 단, 무작위 닉네임에서 처음 바꾸는 것은 언제든 가능하다(`nickname_changed_at`이 null).
+- 90일 제한은 **DB 트리거**로 막는다. 로그인한 사용자는 자기 토큰으로 API를 직접 불러 자기 행을 고칠 수 있어서, 앱 화면의 검사만으로는 우회된다. 앱 화면의 검사는 안내용으로 함께 둔다(S6 프로필 수정).
+- 팀 변경은 제한 없음. 승률은 계산값이라 언제 바꿔도 된다.
+
+### 9-2. 실행할 SQL
+
+SQL Editor에서 먼저 아래를 실행해 행 수를 확인한다. `not null` 컬럼은 행이 있으면 추가할 수 없다.
+
+```sql
+select count(*) from public.profiles;
+```
+
+0이 아니면(시험으로 만든 행) 지우고 진행한다: `delete from public.profiles;`
+
+```sql
+-- 닉네임#태그, 마지막 닉네임 변경 시각
+alter table public.profiles
+  add column nickname text not null
+    check (char_length(nickname) between 3 and 16 and position('#' in nickname) = 0),
+  add column tag text not null
+    check (tag ~ '^[A-Za-z0-9]{3,5}$'),
+  add column nickname_changed_at timestamptz;
+
+-- 닉네임#태그 중복 금지. 대소문자만 다른 이름도 같은 것으로 봄
+create unique index profiles_nickname_tag_key
+  on public.profiles (lower(nickname), lower(tag));
+
+-- 닉네임 변경 규칙. 사용자가 nickname_changed_at을 직접 넣거나 고치는 것도 무시함
+create function public.guard_nickname_change()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  -- 처음 만들 때는 무작위 닉네임이므로 변경 시각 없음
+  if tg_op = 'INSERT' then
+    new.nickname_changed_at := null;
+    return new;
+  end if;
+
+  if new.nickname is distinct from old.nickname or new.tag is distinct from old.tag then
+    -- 첫 변경(null)은 언제든 허용, 그 뒤로는 90일 제한
+    if old.nickname_changed_at is not null
+       and old.nickname_changed_at > now() - interval '90 days' then
+      raise exception 'nickname_change_too_soon' using hint = '닉네임은 마지막 변경 후 90일이 지나야 바꿀 수 있음';
+    end if;
+    new.nickname_changed_at := now();
+  else
+    new.nickname_changed_at := old.nickname_changed_at;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger profiles_guard_nickname_change
+  before insert or update on public.profiles
+  for each row execute function public.guard_nickname_change();
+```
+
+### 9-3. 확인 방법 (사용자)
+1. 7번 확인 쿼리를 다시 실행한다. `trigger`에 `profiles_guard_nickname_change`(INSERT, UPDATE 두 줄)가 추가로 보이면 정상.
+2. 앱에서 로그인한 뒤 Table Editor의 `profiles`에 무작위 닉네임 행이 생겼는지 본다.
+3. SQL Editor에서 90일 제한을 시험한다(관리자 권한이라 RLS는 무시하지만 트리거는 그대로 동작함).
+   ```sql
+   -- 첫 변경: 성공해야 함
+   update public.profiles set nickname = '시험닉네임' where id = '<내 id>';
+   -- 두 번째 변경: nickname_change_too_soon 에러가 나야 함
+   update public.profiles set nickname = '시험닉네임2' where id = '<내 id>';
+   ```
+   시험 후에는 `delete from public.profiles where id = '<내 id>';`로 지운다. 다음 로그인 때 앱이 무작위 닉네임으로 다시 만든다.
+4. 중복 시험: 다른 계정 행의 닉네임·태그를 내 것과 같게(대소문자만 바꿔서) update하면 `duplicate key` 에러가 나야 한다.
