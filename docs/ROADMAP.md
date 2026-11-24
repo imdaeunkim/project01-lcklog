@@ -18,7 +18,8 @@
   - `TeamSelectModal.tsx` 삭제(사용자 승인).
   - **주의:** 트리거 때문에 SQL Editor에서도 `nickname_changed_at`을 직접 지울 수 없음. 시험하다 잠기면 트리거를 잠깐 끄는 SQL 사용(`docs/db-design.md` 10-4).
   - Supabase가 또 일시정지됨(11/16 복구 → 11/24 다시 정지, 약 1주 미사용). 세션 시작 때 접속부터 확인.
-  - **미확인:** 앱 화면에서 중복(`23505`) 안내 문구(두 번째 계정 필요). 잠금 해제 SQL 실행 후 트리거가 다시 켜졌는지(`tgenabled = 'O'`)는 결과를 따로 보지 않음.
+  - 잠금 해제 SQL 실행 후 트리거가 다시 켜진 것 확인(`tgenabled = 'O'`, 사용자 11/24).
+  - **미확인:** 앱 화면에서 중복(`23505`) 안내 문구(두 번째 계정 필요).
 - S5(10/20 시작, 11/16 완료). 로그인 필수, 게스트 없음(사용자 결정).
   - 흐름: 로그인 확인 → `LoginScreen`(Google) → `loadOrCreateProfile`(`src/lib/profile.ts`) → 메인. 처음 로그인하면 무작위 `닉네임#태그` + 팀 없음으로 `profiles` 행을 앱이 insert(트리거 아님).
   - 프로필 타입은 `src/types/profile.ts`. `myTeam`은 `string | null`이고 null이면 "팀 없음" → 승률·티어·캘린더 통계·"내 팀 경기만" 필터를 숨김. `getMyResult`/`getWinStats`가 null을 처리함.
