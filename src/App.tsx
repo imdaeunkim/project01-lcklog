@@ -5,6 +5,7 @@ import type { Diary } from './types/diary';
 import type { Profile } from './types/profile';
 import { supabase } from './lib/supabase';
 import { loadOrCreateProfile } from './lib/profile';
+import { fetchDiaries, createDiary, updateDiary, deleteDiary, type DiaryInput } from './lib/diaries';
 import ProfileHeader from "./components/ProfileHeader";
 import SpectateCalendar from "./components/SpectateCalendar";
 import DiaryFeed from "./components/DiaryFeed";
@@ -12,24 +13,19 @@ import DiaryFormModal from "./components/DiaryFormModal";
 import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
 import ProfileEditModal from './components/ProfileEditModal';
-
-const STORAGE_KEY = 'lol-diaries-v2';
-
-// localStorage에 저장. 용량 초과 등으로 실패하면 false 반환
-function saveToStorage(diaries: Diary[]): boolean {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(diaries));
-    return true;
-  } catch (e) {
-    console.error("데이터 저장 중 에러 발생:", e);
-    return false;
-  }
-}
+import ConfirmDangerModal from './components/ConfirmDangerModal';
+import { resetMyData, deleteMyAccount } from './lib/account';
 
 // 프로필 불러오기 결과. userId를 같이 기억해서 다른 계정의 결과와 섞이지 않게 함
 interface ProfileState {
   userId: string;
   profile: Profile | null; // null이면 실패
+}
+
+// 일기 불러오기 결과. 프로필과 같은 방식
+interface DiariesState {
+  userId: string;
+  diaries: Diary[] | null; // null이면 실패
 }
 
 // 로그인 확인·프로필 불러오기 중에 보여주는 화면
@@ -59,18 +55,10 @@ export default function App() {
     return { year: today.getFullYear(), month: today.getMonth() + 1 };
   });
   const [editingDiary, setEditingDiary] = useState<Diary | null>(null);
-  // diary 초기값 세팅. 저장된 일기가 없으면 빈 목록 (샘플 없음)
-  const [diaries, setDiaries] = useState<Diary[]>(() => {
-    const savedDiaries = localStorage.getItem(STORAGE_KEY);
-    if (savedDiaries) {
-      try {
-        return JSON.parse(savedDiaries);
-      } catch (e) {
-        console.error("데이터 로드 중 에러 발생:", e);
-      }
-    }
-    return [];
-  });
+  const [diariesState, setDiariesState] = useState<DiariesState | null>(null);
+  const [diariesRetry, setDiariesRetry] = useState(0); // 바꾸면 일기를 다시 불러옴
+  // 열려 있는 위험 확인 창. null이면 닫힘
+  const [dangerAction, setDangerAction] = useState<'reset' | 'deleteAccount' | null>(null);
 
   // 로그인·로그아웃 감지. 구독하자마자 현재 로그인 상태도 한 번 알려줌(INITIAL_SESSION)
   useEffect(() => {
@@ -96,27 +84,64 @@ export default function App() {
     return () => { ignore = true; };
   }, [userId, profileRetry]);
 
+  // 로그인한 계정이 바뀌면 그 계정의 일기를 DB에서 불러옴
+  useEffect(() => {
+    if (!userId) return;
+    let ignore = false; // 응답 전에 계정이 바뀌면 이전 계정의 일기는 버림
+    fetchDiaries(userId)
+      .then((list) => {
+        if (!ignore) setDiariesState({ userId, diaries: list });
+      })
+      .catch((e) => {
+        console.error("일기 로드 중 에러 발생:", e);
+        if (!ignore) setDiariesState({ userId, diaries: null });
+      });
+    return () => { ignore = true; };
+  }, [userId, diariesRetry]);
+
+  // 화면의 일기 목록만 바꿈 (DB 저장은 호출하는 쪽에서 먼저 끝냄)
+  const updateDiaryList = (change: (list: Diary[]) => Diary[]) => {
+    setDiariesState((prev) => (prev?.diaries ? { ...prev, diaries: change(prev.diaries) } : prev));
+  };
+
   // 수정 버튼 클릭 시 모달을 수정 모드로 오픈하는 함수
   const handleOpenEditModal = (diary: Diary) => {
     setEditingDiary(diary);
     setIsModalOpen(true);
   };
 
-  // 저장 버튼 클릭 시
-  const handleSaveDiary = (diaryData: Diary) => {
-    const nextDiaries = editingDiary
-      ? diaries.map(d => d.id === editingDiary.id ? diaryData : d) // 수정
-      : [diaryData, ...diaries]; // 신규 작성
-
-    // 저장소에 먼저 저장해 보고, 성공했을 때만 화면에 반영.
-    // 실패하면 모달을 닫지 않아서 작성한 내용이 그대로 남음
-    if (!saveToStorage(nextDiaries)) {
-      alert("저장 공간이 부족해서 저장하지 못했습니다. 사진 수를 줄이거나 다른 일기의 사진을 지운 뒤 다시 시도해 주세요.");
+  // 저장 버튼 클릭 시. DB 저장에 성공했을 때만 화면에 반영하고 모달을 닫음.
+  // 실패하면 모달을 닫지 않아서 작성한 내용이 그대로 남음
+  const handleSaveDiary = async (input: DiaryInput) => {
+    if (!userId) return;
+    try {
+      if (editingDiary) {
+        const saved = await updateDiary(userId, editingDiary, input);
+        updateDiaryList((list) => list.map((d) => (d.id === saved.id ? saved : d))); // 수정
+      } else {
+        const saved = await createDiary(userId, input);
+        updateDiaryList((list) => [saved, ...list]); // 신규 작성은 맨 앞
+      }
+    } catch (e) {
+      console.error("일기 저장 중 에러 발생:", e);
+      alert("일기를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
       return;
     }
-    setDiaries(nextDiaries);
     setIsModalOpen(false);
     setEditingDiary(null); // 수정 상태 초기화
+  };
+
+  // 삭제 버튼 클릭 시. 확인을 받은 뒤 DB에서 지우고, 성공하면 화면에서도 뺌
+  const handleDeleteDiary = async (diary: Diary) => {
+    if (!confirm(`${diary.date} ${diary.match.teamA} vs ${diary.match.teamB} 일기를 삭제할까요?\n삭제하면 되돌릴 수 없습니다.`)) return;
+    try {
+      await deleteDiary(diary); // 사진 파일도 함께 지움
+    } catch (e) {
+      console.error("일기 삭제 중 에러 발생:", e);
+      alert("일기를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+    updateDiaryList((list) => list.filter((d) => d.id !== diary.id));
   };
 
   //모달 닫을 시
@@ -131,10 +156,45 @@ export default function App() {
     setProfileRetry((n) => n + 1);
   };
 
+  // 일기 불러오기 실패 후 다시 시도
+  const handleRetryDiaries = () => {
+    setDiariesState(null);
+    setDiariesRetry((n) => n + 1);
+  };
+
   // 프로필 수정 성공. 새 프로필로 교체하면 승률·티어 등이 새 팀 기준으로 다시 계산됨
   const handleProfileSaved = (saved: Profile) => {
     if (userId) setProfileState({ userId, profile: saved });
     setIsProfileModalOpen(false);
+  };
+
+  // 초기화. 일기·사진을 모두 지우고 팀을 "팀 없음"으로. 성공하면 화면도 빈 상태로 바꿈
+  const handleReset = async () => {
+    if (!userId) return;
+    try {
+      const profile = await resetMyData(userId);
+      setDiariesState({ userId, diaries: [] });
+      setProfileState({ userId, profile });
+      setSelectedDate(null);
+      setDangerAction(null);
+    } catch (e) {
+      console.error("초기화 중 에러 발생:", e);
+      alert("초기화를 끝내지 못했습니다. 다시 시도하면 남은 것부터 이어서 지웁니다.");
+      // 일부만 지워졌을 수 있으므로 일기를 다시 불러와 화면을 DB와 맞춤
+      handleRetryDiaries();
+    }
+  };
+
+  // 회원탈퇴. 성공하면 로그아웃되어 onAuthStateChange가 로그인 화면으로 바꿈
+  const handleDeleteAccount = async () => {
+    if (!userId) return;
+    try {
+      await deleteMyAccount(userId);
+      setDangerAction(null);
+    } catch (e) {
+      console.error("회원탈퇴 중 에러 발생:", e);
+      alert("회원탈퇴를 끝내지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    }
   };
 
   if (!authReady) {
@@ -165,6 +225,26 @@ export default function App() {
     );
   }
 
+  // 지금 계정의 일기를 아직 못 받았으면 불러오는 중
+  if (diariesState?.userId !== userId) {
+    return <FullScreenMessage>일기를 불러오는 중…</FullScreenMessage>;
+  }
+
+  const diaries = diariesState.diaries;
+  if (!diaries) {
+    return (
+      <FullScreenMessage>
+        <p>일기를 불러오지 못했습니다.</p>
+        <button
+          onClick={handleRetryDiaries}
+          className="rounded-lg bg-[#c8aa6e] px-4 py-2 text-xs font-black text-[#0a1428]"
+        >
+          다시 시도
+        </button>
+      </FullScreenMessage>
+    );
+  }
+
   const myTeam = profile.myTeam;
 
   return (
@@ -183,7 +263,12 @@ export default function App() {
             <span className="hidden text-xs text-[#9e9eb1] sm:block font-medium">
               나만을 위한 하이라이트 직관 기록
             </span>
-            <UserMenu profile={profile} onEditProfile={() => setIsProfileModalOpen(true)} />
+            <UserMenu
+              profile={profile}
+              onEditProfile={() => setIsProfileModalOpen(true)}
+              onReset={() => setDangerAction('reset')}
+              onDeleteAccount={() => setDangerAction('deleteAccount')}
+            />
           </div>
         </div>
       </div>
@@ -208,6 +293,7 @@ export default function App() {
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
               onEdit={handleOpenEditModal}
+              onDelete={handleDeleteDiary}
               myTeam={myTeam}
             />
           </div>
@@ -242,6 +328,31 @@ export default function App() {
           onClose={() => setIsProfileModalOpen(false)}
           onSaved={handleProfileSaved}
         />
+      )}
+
+      {dangerAction === 'reset' && (
+        <ConfirmDangerModal
+          title="초기화"
+          confirmLabel="초기화"
+          onConfirm={handleReset}
+          onClose={() => setDangerAction(null)}
+        >
+          <p>직관 일기 {diaries.length}개와 첨부한 사진이 모두 지워지고, 응원팀이 "팀 없음"으로 바뀌어요.</p>
+          <p className="mt-2">닉네임#태그와 계정은 그대로 남아요.</p>
+        </ConfirmDangerModal>
+      )}
+
+      {dangerAction === 'deleteAccount' && (
+        <ConfirmDangerModal
+          title="회원탈퇴"
+          confirmLabel="탈퇴하기"
+          requiredText="동의합니다"
+          onConfirm={handleDeleteAccount}
+          onClose={() => setDangerAction(null)}
+        >
+          <p>계정과 함께 직관 일기, 사진, 프로필(닉네임#태그, 응원팀)이 모두 지워져요.</p>
+          <p className="mt-2">같은 Google 계정으로 다시 로그인하면 새 계정으로 처음부터 시작해요.</p>
+        </ConfirmDangerModal>
       )}
     </div>
   );

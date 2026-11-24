@@ -3,8 +3,10 @@ import { X, Map as MapIcon, Image as ImageIcon, Crosshair } from 'lucide-react';
 import { CHAMPIONS_LIST, CHAMPIONS_BY_POSITION } from "../data/champions";
 import type { Champion } from "../data/champions";
 import type { Diary, Match } from "../types/diary";
+import { IMAGE_MAX_BYTES, IMAGE_TYPES, type DiaryInput } from "../lib/diaries";
 import { getMatchesByDate } from "../data/matches";
 import { getMyResult } from "../utils/matchResult";
+import { compressImage } from "../utils/compressImage";
 import ResultBadge from "./ResultBadge";
 import imgTop from '../assets/positions/top.png';
 import imgJungle from '../assets/positions/jungle.png';
@@ -16,7 +18,7 @@ type Position = "ALL" | "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT";
 
 interface DiaryFormModalProps {
   onClose: () => void;
-  onSave: (diary: Diary) => void;
+  onSave: (input: DiaryInput) => Promise<void>; // DB 저장이 끝나면 완료됨
   editingDiary: Diary | null;
   myTeam: string | null; // null이면 팀 없음
 }
@@ -35,6 +37,14 @@ function sortMyTeamFirst(matches: Match[], myTeam: string | null): Match[] {
   const isMine = (m: Match) => (m.teamA === myTeam || m.teamB === myTeam ? 1 : 0);
   return [...matches].sort((a, b) => isMine(b) - isMine(a));
 }
+
+const MAX_IMAGES = 5;
+
+// 모달에서 다루는 사진 하나. url은 미리보기 주소
+// saved: 이미 Storage에 있는 사진(url은 1시간짜리 주소), new: 이번에 고른 파일(url은 브라우저 임시 주소)
+type FormImage =
+  | { kind: 'saved'; path: string; url: string }
+  | { kind: 'new'; file: File; url: string };
 
 interface ActiveSlot {
   gameIndex: number;
@@ -80,51 +90,94 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
     ? [selectedMatch, ...matches]
     : matches;
   const gameCount = selectedMatch?.format ?? 0;
-  const [location, setLocation] = useState(editingDiary && editingDiary.location !== "미지정 장소" ? editingDiary.location : '');
+  const [location, setLocation] = useState(editingDiary?.location ?? '');
   const [content, setContent] = useState(editingDiary?.content ?? '');
-  const [pom, setPom] = useState(editingDiary && editingDiary.pom !== "미지정" ? editingDiary.pom : '');
+  const [pom, setPom] = useState(editingDiary?.pom ?? '');
+  // 저장 요청 중이면 true. 버튼을 막아 같은 일기가 두 번 저장되는 것을 방지
+  const [isSaving, setIsSaving] = useState(false);
 
-  // 이미지 상태 관리
-  const [uploadedImages, setUploadedImages] = useState<string[]>(
-    () => editingDiary?.images || (editingDiary?.image ? [editingDiary.image] : [])
+  // 이미지 상태 관리. 수정 모드면 이미 올린 사진(경로 + 화면용 주소)으로 시작
+  const [uploadedImages, setUploadedImages] = useState<FormImage[]>(
+    () => editingDiary?.imagePaths.map((path, idx) => ({ kind: 'saved' as const, path, url: editingDiary.images[idx] })) ?? []
   );
   const [representativeIndex, setRepresentativeIndex] = useState<number>(editingDiary?.representativeIndex ?? 0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 새 사진 미리보기용 임시 주소. 모달이 닫힐 때 모두 해제해서 메모리를 돌려줌
+  const previewUrlsRef = useRef(new Set<string>());
+  useEffect(() => {
+    const previewUrls = previewUrlsRef.current;
+    return () => {
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
+      previewUrls.clear();
+    };
+  }, []);
 
   const filteredChampions = selectedPosition === "ALL"
     ? CHAMPIONS_LIST
     : CHAMPIONS_BY_POSITION[selectedPosition];
 
-  // 파일 업로드 처리 (용량 제한 1MB)
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      const filesArray = Array.from(files);
-      
-      if (uploadedImages.length + filesArray.length > 5) {
-        alert("사진은 최대 5장까지만 등록할 수 있습니다.");
-        return;
-      }
+  // 사진을 줄이는 중이면 true. 그동안 사진 추가와 저장을 막음
+  const [isPreparingImages, setIsPreparingImages] = useState(false);
 
-      filesArray.forEach((file) => {
-        if (file.size > 1 * 1024 * 1024) {
-          alert(`"${file.name}" 사진 용량이 1MB를 초과합니다.`);
-          return;
-        }
+  // 파일 선택 처리. 1MB가 넘으면 자동으로 줄임. 파일은 저장 버튼을 누를 때 Storage에 올림
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const filesArray = Array.from(e.target.files ?? []);
+    e.target.value = ''; // 같은 파일을 지웠다가 다시 골라도 onChange가 오게 비움
+    if (filesArray.length === 0) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setUploadedImages((prev) => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file);
-      });
+    if (uploadedImages.length + filesArray.length > MAX_IMAGES) {
+      alert(`사진은 최대 ${MAX_IMAGES}장까지만 등록할 수 있습니다.`);
+      return;
     }
+
+    setIsPreparingImages(true);
+    const added: FormImage[] = [];
+    for (const original of filesArray) {
+      if (!IMAGE_TYPES.includes(original.type)) {
+        alert(`"${original.name}"은 올릴 수 없는 형식입니다. JPG, PNG, WebP, GIF만 가능합니다.`);
+        continue;
+      }
+      let file: File;
+      try {
+        file = await compressImage(original, IMAGE_MAX_BYTES);
+      } catch (err) {
+        console.error('사진 줄이기 실패:', original.name, err);
+        alert(`"${original.name}" 사진을 준비하지 못했습니다. 다른 사진을 골라 주세요.`);
+        continue;
+      }
+      // GIF는 줄이지 않으므로 여기서 걸러짐
+      if (file.size > IMAGE_MAX_BYTES) {
+        alert(`"${original.name}" GIF는 1MB 이하만 올릴 수 있습니다.`);
+        continue;
+      }
+      const url = URL.createObjectURL(file);
+      previewUrlsRef.current.add(url);
+      added.push({ kind: 'new', file, url });
+    }
+    setUploadedImages((prev) => [...prev, ...added]);
+    setIsPreparingImages(false);
+  };
+
+  // 대표 사진 지정. 고른 사진을 맨 앞으로 옮기고 나머지는 순서 유지 (대표 사진은 항상 첫 번째)
+  // 예: [A, B, C, D]에서 C → [C, A, B, D]
+  const handleSetRepresentative = (idx: number) => {
+    if (idx !== 0) {
+      const picked = uploadedImages[idx];
+      setUploadedImages([picked, ...uploadedImages.filter((_, i) => i !== idx)]);
+    }
+    setRepresentativeIndex(0);
   };
 
   // 이미지 삭제 및 대표 인덱스 보정
   // 두 state를 따로 변경. updater 함수 안에서 다른 state를 바꾸면
   // 개발 모드(StrictMode)가 updater를 두 번 실행할 때 대표 인덱스가 두 번 줄어듦
   const handleDeleteImage = (indexToRemove: number) => {
+    const removed = uploadedImages[indexToRemove];
+    if (removed?.kind === 'new') {
+      URL.revokeObjectURL(removed.url);
+      previewUrlsRef.current.delete(removed.url);
+    }
     const next = uploadedImages.filter((_, idx) => idx !== indexToRemove);
     setUploadedImages(next);
 
@@ -149,7 +202,8 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
     setActiveSlot(null); 
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSaving || isPreparingImages) return;
     // 날짜를 바꾼 직후에는 selectedMatch가 아직 이전 날짜의 경기일 수 있음
     if (isLoadingMatches || !selectedMatch) {
       alert("직관한 경기를 선택해 주세요!");
@@ -168,20 +222,25 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
       })
     );
 
-    const newDiary: Diary = {
-      id: editingDiary ? editingDiary.id : Date.now(),
+    // 비어 있는 장소·POM은 null로 저장 (화면에 표시하지 않음)
+    const input: DiaryInput = {
       match: selectedMatch,
-      location: location || "미지정 장소",
+      location: location.trim() || null,
       date: dotDate,
       content: content,
-      pom: pom || "미지정",
+      pom: pom.trim() || null,
       pickedChampions: picksInFormat,
-      image: uploadedImages[representativeIndex] || undefined, 
-      images: uploadedImages,
+      images: uploadedImages.map((img) => (img.kind === 'saved' ? { kind: 'saved', path: img.path } : { kind: 'new', file: img.file })),
       representativeIndex: representativeIndex
     };
 
-    onSave(newDiary);
+    // 성공하면 App이 모달을 닫음. 실패하면 App이 안내하고 모달은 그대로 남음
+    setIsSaving(true);
+    try {
+      await onSave(input);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -434,14 +493,14 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
             <div className="flex items-center gap-2 mb-2">
               <h4 className="text-sm font-black text-[#0a1428]">현장 사진 첨부</h4>
               <span className="text-[10px] bg-[#f3f4f6] text-[#6b7280] px-1.5 py-0.5 rounded font-bold">
-                선택 ({uploadedImages.length}/5)
+                {isPreparingImages ? "사진 준비 중…" : `선택 (${uploadedImages.length}/${MAX_IMAGES})`}
               </span>
             </div>
             
             <input 
               type="file" 
               ref={fileInputRef} 
-              accept="image/*" 
+              accept={IMAGE_TYPES.join(',')}
               multiple 
               onChange={handleImageChange} 
               className="hidden" 
@@ -449,19 +508,19 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
 
             {uploadedImages.length > 0 ? (
               <div className="grid grid-cols-5 gap-3 p-3 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg">
-                {uploadedImages.map((imgUrl, idx) => {
+                {uploadedImages.map((img, idx) => {
                   const isRep = idx === representativeIndex;
                   return (
-                    <div 
-                      key={idx} 
-                      onClick={() => setRepresentativeIndex(idx)}
+                    <div
+                      key={img.kind === 'saved' ? img.path : img.url}
+                      onClick={() => handleSetRepresentative(idx)}
                       className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer group shadow-sm
                         ${isRep 
                           ? "border-[#c8aa6e] ring-2 ring-[#c8aa6e]/20" 
                           : "border-transparent hover:border-gray-400"
                         }`}
                     >
-                      <img src={imgUrl} alt={`업로드 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                      <img src={img.url} alt={`업로드 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
                       
                       {isRep ? (
                         <span className="absolute top-1 left-1 bg-[#c8aa6e] text-[#0a1428] text-[8px] font-black px-1.5 py-0.5 rounded border border-[#0a1428] z-10">
@@ -487,9 +546,10 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
                   );
                 })}
                 
-                {uploadedImages.length < 5 && (
+                {uploadedImages.length < MAX_IMAGES && (
                   <button
                     type="button"
+                    disabled={isPreparingImages}
                     onClick={() => fileInputRef.current?.click()}
                     className="aspect-square border-2 border-dashed border-[#d1d5db] hover:border-[#c8aa6e] rounded-lg flex flex-col items-center justify-center gap-1 bg-white hover:bg-gray-50 transition-colors group"
                   >
@@ -500,14 +560,14 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
               </div>
             ) : (
               <div 
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => { if (!isPreparingImages) fileInputRef.current?.click(); }}
                 className="w-full border-2 border-dashed border-[#d1d5db] rounded-lg p-8 flex flex-col items-center justify-center gap-2 hover:bg-[#f9fafb] hover:border-[#c8aa6e] transition-colors cursor-pointer group"
               >
                 <div className="bg-[#f3f4f6] p-3 rounded-full group-hover:bg-[#f0e6d2] transition-colors">
                   <ImageIcon className="w-6 h-6 text-[#6b7280] group-hover:text-[#c8aa6e]" />
                 </div>
                 <p className="text-sm font-bold text-[#6b7280] group-hover:text-[#c8aa6e]">현장 사진 첨부</p>
-                <p className="text-xs text-[#9ca3af]">최대 5장 (장당 1MB 이하)</p>
+                <p className="text-xs text-[#9ca3af]">최대 5장 (큰 사진은 자동으로 줄여서 올림)</p>
               </div>
             )}
           </section>
@@ -517,10 +577,11 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
         <div className="sticky bottom-0 bg-white border-t border-[#e5e7eb] p-4 z-10">
           <button 
             type="button"
-            onClick={handleSubmit} 
-            className="w-full bg-[#0a1428] text-[#f0e6d2] py-3.5 rounded-lg font-black hover:bg-[#121c2c] transition-colors border border-[#c8aa6e] shadow-md flex justify-center items-center gap-2"
+            onClick={handleSubmit}
+            disabled={isSaving || isPreparingImages}
+            className="w-full bg-[#0a1428] text-[#f0e6d2] py-3.5 rounded-lg font-black hover:bg-[#121c2c] transition-colors border border-[#c8aa6e] shadow-md flex justify-center items-center gap-2 disabled:cursor-wait disabled:opacity-60"
           >
-            {editingDiary ? "기록 수정 완료" : "다이어리에 기록 남기기"}
+            {isSaving ? "저장 중…" : isPreparingImages ? "사진 준비 중…" : editingDiary ? "기록 수정 완료" : "다이어리에 기록 남기기"}
           </button>
         </div>
 

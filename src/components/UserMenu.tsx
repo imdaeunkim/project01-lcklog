@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { CircleUserRound, LogOut, UserPen } from 'lucide-react';
+import { CircleUserRound, LogOut, RotateCcw, UserPen, UserX } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types/profile';
 
 interface UserMenuProps {
   profile: Profile;
   onEditProfile: () => void;
+  onReset: () => void; // 초기화 확인 창 열기
+  onDeleteAccount: () => void; // 회원탈퇴 확인 창 열기
 }
 
-// 상단 바 오른쪽 메뉴. 프로필 수정, 로그아웃 (초기화·회원탈퇴는 S7에서 추가)
-export default function UserMenu({ profile, onEditProfile }: UserMenuProps) {
+// 상단 바 오른쪽 메뉴. 프로필 수정, 로그아웃, 초기화, 회원탈퇴
+export default function UserMenu({ profile, onEditProfile, onReset, onDeleteAccount }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // 로그아웃하면 App의 onAuthStateChange가 감지해서 로그인 화면으로 전환
@@ -57,6 +59,29 @@ export default function UserMenu({ profile, onEditProfile }: UserMenuProps) {
               <LogOut className="size-4" />
               로그아웃
             </button>
+            {/* 되돌릴 수 없는 메뉴는 아래쪽에 구분해서 빨간 글씨로 */}
+            <div className="border-t border-[#1e2837]">
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  onReset();
+                }}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-bold text-[#e84057] transition-colors hover:bg-[#121c2c]"
+              >
+                <RotateCcw className="size-4" />
+                초기화
+              </button>
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  onDeleteAccount();
+                }}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-bold text-[#e84057] transition-colors hover:bg-[#121c2c]"
+              >
+                <UserX className="size-4" />
+                회원탈퇴
+              </button>
+            </div>
           </div>
         </>
       )}
