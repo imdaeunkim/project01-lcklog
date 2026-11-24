@@ -6,7 +6,7 @@ function pick<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-// 닉네임은 형용사+명사(3~16자), 태그는 숫자 4자리
+// 닉네임은 형용사+명사(3~7자, DB 제한은 3~12자), 태그는 숫자 4자리
 export function createRandomNickname(): { nickname: string; tag: string } {
   const nickname = pick(ADJECTIVES) + pick(NOUNS);
   const tag = String(Math.floor(1000 + Math.random() * 9000));

@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { CircleUserRound, LogOut } from 'lucide-react';
+import { CircleUserRound, LogOut, UserPen } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types/profile';
 
 interface UserMenuProps {
   profile: Profile;
+  onEditProfile: () => void;
 }
 
-// 상단 바 오른쪽 메뉴. 지금은 로그아웃만 있음 (프로필 수정은 S6, 초기화·회원탈퇴는 S7에서 추가)
-export default function UserMenu({ profile }: UserMenuProps) {
+// 상단 바 오른쪽 메뉴. 프로필 수정, 로그아웃 (초기화·회원탈퇴는 S7에서 추가)
+export default function UserMenu({ profile, onEditProfile }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // 로그아웃하면 App의 onAuthStateChange가 감지해서 로그인 화면으로 전환
@@ -39,6 +40,16 @@ export default function UserMenu({ profile }: UserMenuProps) {
               <p className="truncate text-sm font-black text-white">{profile.nickname}</p>
               <p className="text-xs font-bold text-[#616c7f]">#{profile.tag}</p>
             </div>
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                onEditProfile();
+              }}
+              className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-bold text-[#f0e6d2] transition-colors hover:bg-[#121c2c]"
+            >
+              <UserPen className="size-4" />
+              프로필 수정
+            </button>
             <button
               onClick={handleLogout}
               className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-bold text-[#f0e6d2] transition-colors hover:bg-[#121c2c]"

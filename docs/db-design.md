@@ -345,3 +345,48 @@ create trigger profiles_guard_nickname_change
    ```
    시험 후에는 `delete from public.profiles where id = '<내 id>';`로 지운다. 다음 로그인 때 앱이 무작위 닉네임으로 다시 만든다.
 4. 중복 시험: 다른 계정 행의 닉네임·태그를 내 것과 같게(대소문자만 바꿔서) update하면 `duplicate key` 에러가 나야 한다.
+
+## 10. S6 변경: 닉네임 최대 12자
+
+### 10-1. 결정
+- 닉네임 최대 길이를 16자에서 12자로 줄인다. 16자 닉네임은 프로필 헤더(가로 약 900px 화면)에서 배치를 깨뜨렸기 때문이다. 헤더는 길이와 상관없이 한 줄로 두고 넘치면 `…`로 자르지만, 그 전에 길이 자체를 줄인다.
+- 무작위 닉네임은 최대 7자라 영향이 없다. 모달 검사(`ProfileEditModal`의 `NICKNAME_MAX_LENGTH`)도 12자로 맞춘다.
+
+### 10-2. 실행할 SQL
+
+먼저 12자를 넘는 닉네임이 있는지 확인한다. 있으면 새 제약을 추가할 때 실패하므로, 그 행의 닉네임을 먼저 줄인다.
+
+```sql
+select id, nickname, char_length(nickname) from public.profiles where char_length(nickname) > 12;
+```
+
+컬럼에 붙인 check 제약은 PostgreSQL이 `profiles_nickname_check`라는 이름으로 만든다. 이름을 확인한 뒤 바꾼다.
+
+```sql
+-- 지금 제약 이름과 내용 확인
+select conname, pg_get_constraintdef(oid) from pg_constraint
+where conrelid = 'public.profiles'::regclass and contype = 'c';
+
+-- 3~16자 → 3~12자
+alter table public.profiles drop constraint profiles_nickname_check;
+alter table public.profiles add constraint profiles_nickname_check
+  check (char_length(nickname) between 3 and 12 and position('#' in nickname) = 0);
+```
+
+### 10-3. 확인 방법 (사용자)
+- 위 확인 쿼리를 다시 실행해 `profiles_nickname_check`가 `between 3 and 12`로 보이면 정상.
+- 13자 이상으로 update하면 `violates check constraint` 에러가 나야 한다.
+
+### 10-4. 시험하다 닉네임이 잠겼을 때 (사용자)
+트리거는 SQL Editor(관리자 권한)에서도 동작한다. 그래서 잠긴 상태에서 닉네임을 바꾸면 `nickname_change_too_soon`이 나고, `nickname_changed_at`만 null로 바꾸면 트리거가 원래 값으로 되돌린다(사용자가 직접 제한을 푸는 것을 막는 장치). 시험용으로 풀 때는 트리거를 잠깐 끈다. 한 트랜잭션으로 묶어서 중간에 실패해도 트리거가 꺼진 채 남지 않게 한다.
+
+```sql
+begin;
+alter table public.profiles disable trigger profiles_guard_nickname_change;
+update public.profiles set nickname_changed_at = null where id = '<내 id>';
+alter table public.profiles enable trigger profiles_guard_nickname_change;
+commit;
+
+-- 트리거가 다시 켜졌는지 확인. tgenabled가 'O'면 켜짐, 'D'면 꺼짐
+select tgname, tgenabled from pg_trigger where tgname = 'profiles_guard_nickname_change';
+```
