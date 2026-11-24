@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type { Diary, Match } from '../types/diary';
 
 // DB diaries 행에서 읽어오는 컬럼 (DB는 snake_case)
-const COLUMNS = 'id, date, match, content, location, pom, picked_champions, image_paths, representative_index';
+const COLUMNS = 'id, date, match, content, location, pom, picked_champions, image_paths, representative_index, updated_at';
 interface DiaryRow {
   id: number;
   date: string; // "YYYY-MM-DD"
@@ -13,6 +13,7 @@ interface DiaryRow {
   picked_champions: NonNullable<Diary['pickedChampions']>;
   image_paths: string[];
   representative_index: number;
+  updated_at: string; // 마지막 수정 시각. DB 트리거가 갱신
 }
 
 // 사진 버킷 (비공개). 설정과 정책은 docs/db-design.md 11번
@@ -67,6 +68,7 @@ function toDiary(row: DiaryRow, urls: Map<string, string>): Diary {
     imagePaths: row.image_paths,
     images: row.image_paths.map((path) => urls.get(path) ?? ''),
     representativeIndex: row.representative_index,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -76,7 +78,7 @@ async function toDiaryWithUrls(row: DiaryRow): Promise<Diary> {
 }
 
 // 앱 입력 → DB 행. 비어 있는 선택 항목은 null 또는 빈 값
-function toRow(input: DiaryInput, imagePaths: string[]): Omit<DiaryRow, 'id'> {
+function toRow(input: DiaryInput, imagePaths: string[]): Omit<DiaryRow, 'id' | 'updated_at'> {
   return {
     date: input.date.replace(/\./g, '-'),
     match: input.match,
