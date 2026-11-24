@@ -528,3 +528,80 @@ select
 - 관리자 비교: 일기 1, 프로필 1, 사진 3 (사진 있는 일기 1개 작성 후)
 - 다른 사용자: 일기 0, 프로필 0, 사진 0, 수정 0, 삭제 0 → **통과.** 로그인한 사용자는 남의 일기·프로필·사진을 보거나 고치거나 지울 수 없음
 - 같은 방법으로 S5에서 미뤄 둔 `profiles` 격리 확인도 끝남
+
+## 14. S8 변경: 승요 리포트 (Edge Function + LLM)
+
+### 14-1. 결정
+- 리포트는 **Supabase Edge Function `lol-report`**(`supabase/functions/lol-report/index.ts`)가 Claude API를 불러 만든다. API 키는 브라우저에 두면 누구나 볼 수 있으므로 서버(함수)에만 둔다.
+  - Claude Pro 구독과 API는 결제가 따로다. Claude Console(platform.claude.com)에서 API 키를 발급하고 크레딧을 충전해야 한다.
+  - 모델은 함수 맨 위 `MODEL` 상수 한 곳에만 둔다. 지금은 `claude-opus-5-5`, API 키 준비 후 사용자가 확정한다.
+- 입력은 내 `diaries` 행(사진 제외)과 응원팀. 승률 등 숫자는 함수가 계산해서 넘긴다(LLM이 숫자를 틀리지 않게). 결과는 정해진 JSON 모양(제목, 요약, 하이라이트, 한마디)으로 받는다.
+- **다시 만들기 조건(사용자 결정): 일기가 바뀌었을 때만.** "일기 수 + 가장 최근 `updated_at`"이 지난 리포트 때와 다르면 허용. 추가·삭제는 개수, 수정은 시각으로 잡힌다. 일기는 **3개 이상**이어야 한다(사용자 결정). API 비용이 앱 주인에게 나가므로 이 검사는 함수가 한다(앱 화면의 버튼 잠금은 안내용).
+- 결과는 `reports` 테이블에 사용자당 1행으로 저장한다. 새로고침해도 다시 호출하지 않는다.
+  - 사용자는 **읽기만** 가능. 쓰기는 함수가 `service_role` 키로만 한다. 사용자가 쓸 수 있으면 `diary_count`를 바꿔 재생성 제한을 우회할 수 있기 때문이다.
+  - 같은 이유로 사용자 삭제 권한도 없다. 그래서 초기화해도 리포트 행은 남는다. 대신 일기가 3개 미만이면 화면에서 예전 리포트를 숨기고, 일기를 다시 쓰면 "일기 바뀜"이라 새로 만들 수 있다. 회원탈퇴는 cascade로 함께 지워진다.
+- 앱은 30초 안에 응답이 없거나 실패하면 기본 통계(직관 수, 승률, 가장 많이 본 팀)와 안내 문구를 보여준다. 함수가 늦게라도 끝나면 리포트는 저장되므로 새로고침하면 보인다.
+
+### 14-2. 실행할 SQL
+
+```sql
+-- 승요 리포트. 사용자당 1행(가장 최근 리포트), 계정 삭제 시 함께 삭제
+create table public.reports (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  content jsonb not null check (jsonb_typeof(content) = 'object'),
+  diary_count int not null,                  -- 만들 때의 일기 수
+  diaries_updated_at timestamptz not null,   -- 만들 때 가장 최근 일기 수정 시각
+  created_at timestamptz not null default now()
+);
+
+-- 로그인 사용자는 조회만. 쓰기는 Edge Function(service_role)만
+grant select on public.reports to authenticated;
+grant select, insert, update on public.reports to service_role;
+revoke references, trigger, truncate on public.reports from anon, authenticated;
+
+alter table public.reports enable row level security;
+
+create policy "reports: 내 리포트 조회" on public.reports
+  for select to authenticated
+  using ((select auth.uid()) = user_id);
+```
+
+- `service_role`은 RLS를 무시하므로 쓰기 정책이 필요 없다. "Automatically expose new tables"를 꺼 두어서 `service_role`에도 GRANT를 직접 한다(기본 권한이 있는지는 확인하지 않음).
+
+### 14-3. API 키 등록과 함수 배포 (사용자)
+1. Claude Console에서 API 키 발급, 크레딧 충전.
+2. Supabase 대시보드 → Edge Functions → **Secrets**에 `ANTHROPIC_API_KEY` = 발급한 키 추가. `.env.local`, Vercel, `VITE_` 변수에는 넣지 않는다.
+   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`는 Supabase가 함수에 자동으로 넣어 준다고 알고 있음(확인하지 않음). Secrets 화면에 기본값으로 보이는지 확인.
+3. 함수 배포. 둘 중 하나.
+   - 대시보드: Edge Functions → Deploy a new function → Via Editor, 이름 `lol-report`, `supabase/functions/lol-report/index.ts` 내용을 붙여 넣고 Deploy.
+   - CLI: `npx supabase login` → `npx supabase functions deploy lol-report --project-ref <프로젝트 ref>` (ref는 대시보드 주소 `/project/<ref>`).
+4. 로그인했는데도 함수가 401을 돌려주면, 함수 설정의 **Verify JWT**를 끈다. 함수 안에서 `auth.getUser()`로 로그인을 직접 확인하므로 꺼도 비로그인 요청은 막힌다(새 키 방식과 Verify JWT의 관계는 확인하지 않음).
+5. 함수 코드를 고치면 다시 배포해야 반영된다(PR 머지만으로는 배포되지 않음).
+
+### 14-4. 확인 방법 (사용자)
+1. 일기 3개 이상 → 캘린더 아래 "리포트 만들기" → 리포트 표시. Table Editor `reports`에 내 행이 생김.
+2. 새로고침해도 같은 리포트, 버튼은 잠기고 "일기를 새로 쓰거나 고치면…" 안내.
+3. 일기 하나를 고치면 버튼이 다시 켜짐.
+4. Secrets의 `ANTHROPIC_API_KEY`를 잠깐 지우고(또는 틀린 값) 만들기 → 실패 안내 + 기본 통계(예전 리포트가 있으면 그대로). 확인 후 키 복구.
+5. 실패 원인은 대시보드 Edge Functions → `lol-report` → Logs에서 본다(앱 안내 문구는 원인과 상관없이 비슷함).
+6. RLS 확인. 13-2와 같은 방법(다른 사용자로 흉내 내고 마지막에 에러로 모두 취소). `리포트 0, 쓰기 거부`가 나오면 정상.
+   ```sql
+   do $$
+   declare
+     v_reports int; v_write text := '허용됨(문제)';
+   begin
+     execute 'set local role authenticated';
+     perform set_config('request.jwt.claims',
+       json_build_object('sub', gen_random_uuid()::text, 'role', 'authenticated')::text, true);
+
+     select count(*) into v_reports from public.reports;
+     begin
+       insert into public.reports (user_id, content, diary_count, diaries_updated_at)
+       values ((select auth.uid()), '{}', 0, now());
+     exception when insufficient_privilege then
+       v_write := '거부';
+     end;
+
+     raise exception '결과: 리포트 %, 쓰기 %', v_reports, v_write;
+   end $$;
+   ```

@@ -15,6 +15,8 @@ import UserMenu from './components/UserMenu';
 import ProfileEditModal from './components/ProfileEditModal';
 import ConfirmDangerModal from './components/ConfirmDangerModal';
 import { resetMyData, deleteMyAccount } from './lib/account';
+import ReportCard from './components/ReportCard';
+import { fetchReport, generateReport, ReportError, type Report } from './lib/report';
 
 // 프로필 불러오기 결과. userId를 같이 기억해서 다른 계정의 결과와 섞이지 않게 함
 interface ProfileState {
@@ -26,6 +28,13 @@ interface ProfileState {
 interface DiariesState {
   userId: string;
   diaries: Diary[] | null; // null이면 실패
+}
+
+// 승요 리포트 불러오기 결과. 프로필과 같은 방식
+interface ReportState {
+  userId: string;
+  report: Report | null; // 저장된 리포트가 없으면 null
+  loadFailed: boolean;
 }
 
 // 로그인 확인·프로필 불러오기 중에 보여주는 화면
@@ -57,6 +66,9 @@ export default function App() {
   const [editingDiary, setEditingDiary] = useState<Diary | null>(null);
   const [diariesState, setDiariesState] = useState<DiariesState | null>(null);
   const [diariesRetry, setDiariesRetry] = useState(0); // 바꾸면 일기를 다시 불러옴
+  const [reportState, setReportState] = useState<ReportState | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null); // 만들기 실패 안내
   // 열려 있는 위험 확인 창. null이면 닫힘
   const [dangerAction, setDangerAction] = useState<'reset' | 'deleteAccount' | null>(null);
 
@@ -99,9 +111,25 @@ export default function App() {
     return () => { ignore = true; };
   }, [userId, diariesRetry]);
 
+  // 로그인한 계정이 바뀌면 저장된 승요 리포트를 불러옴 (새로 만들지는 않음)
+  useEffect(() => {
+    if (!userId) return;
+    let ignore = false;
+    fetchReport(userId)
+      .then((report) => {
+        if (!ignore) setReportState({ userId, report, loadFailed: false });
+      })
+      .catch((e) => {
+        console.error("리포트 로드 중 에러 발생:", e);
+        if (!ignore) setReportState({ userId, report: null, loadFailed: true });
+      });
+    return () => { ignore = true; };
+  }, [userId]);
+
   // 화면의 일기 목록만 바꿈 (DB 저장은 호출하는 쪽에서 먼저 끝냄)
   const updateDiaryList = (change: (list: Diary[]) => Diary[]) => {
     setDiariesState((prev) => (prev?.diaries ? { ...prev, diaries: change(prev.diaries) } : prev));
+    setReportError(null); // 일기가 바뀌면 지난 리포트 실패 안내("바뀐 일기 없음" 등)는 더 맞지 않음
   };
 
   // 수정 버튼 클릭 시 모달을 수정 모드로 오픈하는 함수
@@ -166,6 +194,21 @@ export default function App() {
   const handleProfileSaved = (saved: Profile) => {
     if (userId) setProfileState({ userId, profile: saved });
     setIsProfileModalOpen(false);
+  };
+
+  // 리포트 만들기 버튼. 성공하면 새 리포트로 교체, 실패하면 안내만 띄우고 예전 리포트는 그대로 둠
+  const handleGenerateReport = async () => {
+    if (!userId) return;
+    setIsGeneratingReport(true);
+    setReportError(null);
+    try {
+      const report = await generateReport();
+      setReportState({ userId, report, loadFailed: false });
+    } catch (e) {
+      setReportError(e instanceof ReportError ? e.message : '리포트를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   // 초기화. 일기·사진을 모두 지우고 팀을 "팀 없음"으로. 성공하면 화면도 빈 상태로 바꿈
@@ -246,6 +289,8 @@ export default function App() {
   }
 
   const myTeam = profile.myTeam;
+  // 다른 계정의 리포트가 섞이지 않게 지금 계정 것만 씀
+  const currentReport = reportState?.userId === userId ? reportState : null;
 
   return (
     <div className="lck-root min-h-screen relative bg-[#f3f4f6]">
@@ -285,6 +330,16 @@ export default function App() {
               currentYearMonth={currentYearMonth}
               setCurrentYearMonth={setCurrentYearMonth}
               myTeam={myTeam}
+            />
+            {/* 승요 리포트 (위치는 임시) */}
+            <ReportCard
+              diaries={diaries}
+              myTeam={myTeam}
+              report={currentReport?.report ?? null}
+              loading={!currentReport}
+              generating={isGeneratingReport}
+              errorMessage={reportError ?? (currentReport?.loadFailed ? '저장된 리포트를 불러오지 못했어요.' : null)}
+              onGenerate={handleGenerateReport}
             />
           </div>
           <div className="lg:col-span-3">
