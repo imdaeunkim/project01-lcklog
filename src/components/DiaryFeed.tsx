@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Diary } from '../types/diary';
-import { MapPin, Trophy, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { MapPin, Trophy, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X, Trash2 } from 'lucide-react';
 import { getMyResult } from '../utils/matchResult';
 import ResultBadge from './ResultBadge';
 
@@ -9,10 +9,11 @@ interface DiaryFeedProps {
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   onEdit: (diary: Diary) => void;
+  onDelete: (diary: Diary) => void;
   myTeam: string | null; // null이면 팀 없음
 }
 
-export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit, myTeam }: DiaryFeedProps) {
+export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit, onDelete, myTeam }: DiaryFeedProps) {
   const [activeImagePopup, setActiveImagePopup] = useState<string | null>(null);
   // true면 내 팀이 출전한 경기의 일기만 표시
   const [onlyMyTeam, setOnlyMyTeam] = useState(false);
@@ -56,18 +57,14 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
     setExpandedId(diaries[0]?.id ?? null);
   };
 
-  const getGameCount = (pickedChamps: Diary['pickedChampions']) => {
-    if (!pickedChamps) return 0;
-    const keys = Object.keys(pickedChamps);
-    let maxGameIdx = -1;
-    keys.forEach(key => {
+  // 챔피언을 한 명이라도 넣은 세트 번호(0부터)만 작은 순서로. 빈 세트는 표시하지 않음
+  const getPickedGames = (pickedChamps: Diary['pickedChampions']) => {
+    const games = new Set<number>();
+    Object.keys(pickedChamps ?? {}).forEach(key => {
       const match = key.match(/^game(\d+)-/);
-      if (match) {
-        const idx = parseInt(match[1], 10);
-        if (idx > maxGameIdx) maxGameIdx = idx;
-      }
+      if (match) games.add(parseInt(match[1], 10));
     });
-    return maxGameIdx + 1; 
+    return [...games].sort((a, b) => a - b);
   };
 
   return (
@@ -110,11 +107,14 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
         {filteredDiaries.length > 0 ? (
           filteredDiaries.map((diary) => {
             const isExpanded = expandedId === diary.id;
-            const gameCount = getGameCount(diary.pickedChampions); 
+            const pickedGames = getPickedGames(diary.pickedChampions);
 
-            const repIdx = diary.representativeIndex ?? 0;
-            const hasImages = diary.images && diary.images.length > 0;
-            const repImage = hasImages ? diary.images?.[repIdx] : diary.image;
+            const repIdx = diary.representativeIndex;
+            // 주소 받기에 실패한 사진(빈 주소)은 빼고 표시. idx는 원래 순서(대표 표시용)
+            const visibleImages = diary.images
+              .map((url, idx) => ({ url, idx }))
+              .filter((img) => img.url);
+            const repImage = diary.images[repIdx] || visibleImages[0]?.url; // 사진이 없으면 undefined
 
             return (
               <div 
@@ -129,20 +129,20 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                   onClick={() => handleCardClick(diary.id)}
                   className="p-5 flex gap-5 items-start cursor-pointer select-none"
                 >
-                  <div className="shrink-0">
-                    <img 
-                      src={repImage || "https://placehold.co/180x180/f3f4f6/a7aaaf?text=MATCH+PHOTO"} 
-                      alt="경기 스크린샷" 
-                      className={`w-28 h-28 rounded-lg border border-[#e5e7eb] object-cover transition-transform duration-300
-                        ${repImage ? 'cursor-zoom-in hover:scale-[1.02]' : ''}`}
-                      onClick={(e) => {
-                        if (repImage) {
-                          e.stopPropagation(); 
-                          setActiveImagePopup(repImage); 
-                        }
-                      }}
-                    />
-                  </div>
+                  {/* 사진이 없으면 썸네일 자리 없이 내용이 카드 전체 너비를 씀 */}
+                  {repImage && (
+                    <div className="shrink-0">
+                      <img
+                        src={repImage}
+                        alt="대표 직관 사진"
+                        className="w-28 h-28 rounded-lg border border-[#e5e7eb] object-cover transition-transform duration-300 cursor-zoom-in hover:scale-[1.02]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveImagePopup(repImage);
+                        }}
+                      />
+                    </div>
+                  )}
 
                   <div className="flex-1 flex flex-col gap-2 relative pr-8">
                     <div className="flex flex-wrap items-center gap-2 pb-2">
@@ -153,10 +153,13 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                         {diary.match.scoreA}:{diary.match.scoreB}
                       </span>
                       <ResultBadge result={getMyResult(diary.match, myTeam)} />
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-[#6b7280]">
-                        <MapPin className="w-3 h-3 text-[#e84057]" />
-                        <span>{diary.location}</span>
-                      </div>
+                      {/* 장소가 비어 있으면 표시하지 않음 */}
+                      {diary.location && (
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-[#6b7280]">
+                          <MapPin className="w-3 h-3 text-[#e84057]" />
+                          <span>{diary.location}</span>
+                        </div>
+                      )}
                       <span className="text-[11px] font-bold text-[#9ca3af] ml-auto">{diary.date}</span>
                     </div>
 
@@ -164,10 +167,13 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                       "{diary.content}"
                     </p>
 
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-gray-500 mt-1">
-                      <Trophy className="w-3 h-3 text-[#fbbf24]" />
-                      <span>POM: <span className="text-black font-black">{diary.pom}</span></span>
-                    </div>
+                    {/* POM이 비어 있으면 표시하지 않음 */}
+                    {diary.pom && (
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-gray-500 mt-1">
+                        <Trophy className="w-3 h-3 text-[#fbbf24]" />
+                        <span>POM: <span className="text-black font-black">{diary.pom}</span></span>
+                      </div>
+                    )}
 
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400">
                       {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -178,8 +184,8 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                 {isExpanded && (
                   <div className="bg-[#f8f9fa] border-t border-[#e5e7eb] p-5 animate-slideDown flex flex-col gap-4">
                     
-                    {gameCount > 0 ? (
-                      Array.from({ length: gameCount }).map((_, gameIdx) => (
+                    {/* 밴픽을 넣은 세트만 표시. 하나도 없으면 이 구역 전체를 숨김 */}
+                    {pickedGames.map((gameIdx) => (
                         <div 
                           key={`game-row-${gameIdx}`} 
                           className="bg-white border border-[#e5e7eb] rounded-xl p-3 shadow-sm flex items-center justify-between gap-2"
@@ -198,7 +204,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                                       title={`블루 ${box}번: ${champ.name}`}
                                     />
                                   ) : (
-                                    <div className="size-9 bg-[#ecf2ff] border border-dashed border-[#b3ccff] rounded-md flex items-center justify-center text-[10px] text-[#4477ee] font-bold">?</div>
+                                    <EmptySlot />
                                   )}
                                 </div>
                               );
@@ -223,7 +229,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                                       title={`레드 ${box}번: ${champ.name}`}
                                     />
                                   ) : (
-                                    <div className="size-9 bg-[#fff0f2] border border-dashed border-[#ffd0d6] rounded-md flex items-center justify-center text-[10px] text-[#e05260] font-bold">?</div>
+                                    <EmptySlot />
                                   )}
                                 </div>
                               );
@@ -231,26 +237,21 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                           </div>
 
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-4 text-xs font-bold text-gray-400 bg-white border rounded-xl">
-                        기록된 챔피언 밴픽 정보가 없습니다.
-                      </div>
-                    )}
+                    ))}
 
                     <div className="text-xs text-gray-500 font-medium bg-[#f9fafb] border p-4 rounded-lg flex flex-col gap-1">
                       <div className="leading-relaxed">📝 {diary.content}</div>
                       
                       {/* 이미지 슬라이더 갤러리 */}
-                      {diary.images && diary.images.length > 0 && (
+                      {visibleImages.length > 0 && (
                         <div className="mt-4 border-t border-gray-200/60 pt-3">
                           <span className="text-[10px] font-bold text-[#6b7280] block mb-2">📸 직관 사진 모음</span>
                           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-200">
-                            {diary.images.map((imgUrl, idx) => {
-                              const isRep = idx === repIdx;
+                            {visibleImages.map(({ url: imgUrl, idx }) => {
+                              const isRep = imgUrl === repImage;
                               return (
-                                <div 
-                                  key={idx} 
+                                <div
+                                  key={idx}
                                   className={`size-24 rounded-lg overflow-hidden shrink-0 shadow-sm transition-all relative group cursor-pointer border-2
                                     ${isRep 
                                       ? "border-[#c8aa6e] ring-2 ring-[#c8aa6e]/20" 
@@ -278,8 +279,19 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                         </div>
                       )}
 
-                      {/* 수정 버튼 */}
-                      <div className="flex justify-end mt-4 pt-3 border-t border-gray-200/60">
+                      {/* 삭제·수정 버튼 */}
+                      <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-200/60">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(diary);
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-black bg-white hover:bg-[#fff0f2] text-[#e84057] px-3.5 py-1.5 rounded-lg border border-[#ffd0d6] transition-all active:scale-[0.98] shadow-sm"
+                        >
+                          <Trash2 className="size-3.5" />
+                          삭제
+                        </button>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -351,4 +363,8 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
 
     </div>
   );
+}
+// 밴픽을 넣은 세트 안의 빈 칸. 자리(1~5번)를 맞추려고 상자만 연한 회색으로 남김
+function EmptySlot() {
+  return <div className="size-9 rounded-md border border-dashed border-[#e5e7eb] bg-[#f3f4f6]" />;
 }

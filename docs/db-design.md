@@ -390,3 +390,141 @@ commit;
 -- 트리거가 다시 켜졌는지 확인. tgenabled가 'O'면 켜짐, 'D'면 꺼짐
 select tgname, tgenabled from pg_trigger where tgname = 'profiles_guard_nickname_change';
 ```
+
+## 11. S7 변경: 사진을 Storage로
+
+### 11-1. 결정
+- 사진은 base64 글자로 DB에 넣지 않고 **Supabase Storage**에 파일로 올린다. DB `diaries.image_paths`에는 Storage 안의 파일 경로만 저장한다.
+  - DB는 짧은 데이터를 찾고 정렬하는 데 맞춰져 있다. 사진을 넣으면 일기 목록을 불러올 때마다 사진 전체가 같이 오고, 무료 플랜 DB 용량(500MB)도 빨리 찬다.
+  - 경로는 기기와 상관없는 Storage 안의 위치라서, 같은 계정으로 로그인하면 어느 기기에서든 같은 사진을 받는다.
+- 버킷 `diary-images`는 **비공개**로 한다(사용자 결정). 개인 직관 사진이라 본인만 볼 수 있게 한다.
+  - 비공개라 화면에 보여줄 때는 일기를 불러올 때 경로마다 **1시간짜리 주소(signed URL)**를 받아서 쓴다. 탭을 1시간 넘게 열어 두면 사진이 깨질 수 있고, 새로고침하면 다시 보인다.
+- 파일 경로는 `{user_id}/{무작위 이름}.{확장자}`. Storage 정책으로 로그인한 사용자가 **자기 id 폴더**만 올리고, 보고, 지울 수 있게 한다.
+- 장당 1MB 이하, JPEG·PNG·WebP·GIF만 받는다. 앱도 같은 검사를 하지만, 실제로 막는 것은 버킷 설정이다.
+- 1MB가 넘는 사진은 앱이 올리기 전에 줄인다(`src/utils/compressImage.ts`, 사용자 결정). 긴 변 1920px, JPEG 화질 0.85 → 0.7 → 0.55, 그래도 넘으면 크기를 더 줄임. 다시 그리면서 촬영 위치(GPS) 같은 사진 정보도 빠진다. GIF는 움직임이 사라지므로 줄이지 않고 1MB 제한을 그대로 둔다.
+- 저장 순서: 새 사진 업로드 → 일기 행 저장 → (수정이면) 뺀 사진 파일 삭제. 행 저장이 실패하면 방금 올린 파일을 지운다. 일기 삭제는 행을 먼저 지우고 사진 파일을 지운다.
+
+### 11-2. 실행할 SQL
+
+```sql
+-- 비공개 버킷. 장당 1MB, 이미지 4종만
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('diary-images', 'diary-images', false, 1048576,
+        array['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+-- 경로의 첫 폴더가 내 user_id인 파일만 보기·올리기·지우기
+-- (storage.foldername(name))[1]은 'user_id/파일.jpg'에서 'user_id' 부분
+create policy "diary-images: 내 폴더 조회" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'diary-images' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+create policy "diary-images: 내 폴더 업로드" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'diary-images' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+create policy "diary-images: 내 폴더 삭제" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'diary-images' and (storage.foldername(name))[1] = (select auth.uid())::text);
+```
+
+- 수정(update) 정책은 두지 않는다. 사진을 바꾸면 새 이름으로 올리고 예전 파일을 지우기 때문이다.
+- Storage(`storage` 스키마)는 S4에서 끈 "Automatically expose new tables"(`public` 스키마용)와 별개로 Supabase가 기본 권한을 준다고 보고 GRANT는 따로 하지 않는다(문서로 확인하지 않음. 업로드가 되는지로 확인).
+
+### 11-3. 확인 방법 (사용자)
+1. 정책 확인 쿼리. 3줄(SELECT, INSERT, DELETE)이 나오면 정상.
+   ```sql
+   select policyname, cmd from pg_policies
+   where schemaname = 'storage' and tablename = 'objects' and policyname like 'diary-images:%';
+   ```
+2. 대시보드 Storage에 `diary-images`가 보이고, Private로 표시되는지 확인.
+3. 앱에서 사진이 있는 일기를 쓰면 `diary-images/{내 id}/`에 파일이 생기고, `diaries.image_paths`에 같은 경로가 들어가는지 확인.
+4. 사진을 빼고 수정하거나 일기를 지우면 파일도 사라지는지 확인.
+
+## 12. S7 변경: 초기화와 회원탈퇴
+
+### 12-1. 결정
+- **초기화**(사용자 결정): 내 일기 행 전체 + Storage 내 폴더의 사진 전체를 지우고, 내 팀을 "팀 없음"(`my_team = null`)으로 되돌린다. 닉네임·태그와 계정은 남는다. 기존 RLS(내 일기 삭제)와 Storage 정책(내 폴더 삭제)으로 충분해서 새 SQL이 필요 없다.
+- **회원탈퇴**: 로그인 계정(`auth.users`)은 브라우저 키로 지울 수 없다. 그래서 **본인 계정만 지우는 DB 함수** `delete_my_account()`를 두고 앱이 `rpc`로 부른다.
+  - `security definer`라서 함수 주인(관리자) 권한으로 실행된다. 대신 함수 안에서 `auth.uid()`(지금 로그인한 사람)만 지우므로 남의 계정은 지울 수 없다.
+  - 계정이 지워지면 `profiles`, `diaries`는 `on delete cascade`로 함께 지워진다.
+  - 사진은 SQL로 직접 지우지 않고, 계정을 지우기 **전에** 앱이 Storage API로 내 폴더를 비운다(Supabase가 Storage 테이블 직접 삭제를 막아 둔 것으로 알고 있음, 확인하지 않음. 또 계정을 먼저 지우면 내 폴더를 지울 권한도 사라짐).
+  - 순서: 사진 삭제 → `delete_my_account()` → 이 브라우저 로그아웃. 같은 Google 계정으로 다시 로그인하면 새 계정·새 무작위 닉네임으로 시작한다.
+- 탈퇴 확인 창은 `동의합니다`를 직접 입력해야 버튼이 켜진다(사용자 결정).
+
+### 12-2. 실행할 SQL
+
+```sql
+-- 지금 로그인한 사용자 본인의 계정만 삭제. profiles, diaries는 cascade로 함께 삭제됨
+create function public.delete_my_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+
+-- 실행 권한은 로그인한 사용자만. PUBLIC(모두)과 anon(비로그인)에서는 회수
+revoke execute on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;
+```
+
+### 12-3. 확인 방법 (사용자)
+1. 실행 권한 확인. `authenticated`만 나오면 정상(`postgres` 등 관리자 역할이 함께 보이는 것은 괜찮음).
+   ```sql
+   select grantee, privilege_type from information_schema.routine_privileges
+   where routine_schema = 'public' and routine_name = 'delete_my_account';
+   ```
+2. 앱에서 초기화 → Table Editor `diaries`의 내 행, Storage `diary-images/{내 id}/`가 비고, `profiles.my_team`이 NULL인지 확인. 닉네임은 그대로.
+3. 앱에서 회원탈퇴 → Authentication 사용자 목록, `profiles`, `diaries`, Storage 내 폴더에서 모두 사라지는지 확인.
+
+## 13. S7 확인: RLS와 Storage 정책
+
+### 13-1. 왜 앱 화면으로는 확인할 수 없나
+`fetchDiaries`는 `.eq('user_id', 내 id)`로 내 일기만 요청한다. 그래서 RLS가 꺼져 있어도 화면에는 내 일기만 보인다. 확인하려면 **조건 없이 전부** 요청했을 때 남의 행이 나오지 않아야 한다.
+
+### 13-2. 확인 SQL (사용자)
+- SQL Editor는 관리자 권한이라 RLS를 무시한다. 그래서 블록 안에서만 역할을 `authenticated`로 바꾸고, 로그인 id를 **무작위 id**(= 데이터가 하나도 없는 다른 사용자)로 지정한다. 두 번째 Google 계정이 필요 없다.
+- SQL Editor는 마지막 문장의 결과만 보여주므로 한 블록으로 묶었다. 마지막에 일부러 에러를 내서 결과를 에러 문구로 보여주고, 블록 안에서 한 일(수정·삭제 시도 포함)을 모두 취소한다. RLS가 뚫려 있어도 실제 데이터는 바뀌지 않는다.
+- 준비: 내 계정으로 사진이 있는 일기를 1개 이상 만들어 둔다(남의 데이터가 있어야 안 보이는지 확인할 수 있음).
+
+```sql
+do $$
+declare
+  v_diaries int; v_profiles int; v_images int; v_updated int; v_deleted int;
+begin
+  -- 이 블록 안에서만 "로그인한 다른 사용자"로 바꿈
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', gen_random_uuid()::text, 'role', 'authenticated')::text, true);
+
+  select count(*) into v_diaries from public.diaries;
+  select count(*) into v_profiles from public.profiles;
+  select count(*) into v_images from storage.objects where bucket_id = 'diary-images';
+  with u as (update public.diaries set content = content returning id) select count(*) into v_updated from u;
+  with d as (delete from public.diaries returning id) select count(*) into v_deleted from d;
+
+  -- 에러로 끝내서 위에서 한 일을 모두 취소하고, 결과를 에러 문구로 보여줌
+  raise exception '결과(모두 0이면 정상): 일기 %, 프로필 %, 사진 %, 수정 %, 삭제 %',
+    v_diaries, v_profiles, v_images, v_updated, v_deleted;
+end $$;
+```
+
+비교용(관리자 권한, 읽기만 함). 1 이상이 나와야 위 결과의 0이 "데이터가 없어서"가 아니라 "RLS가 막아서"임을 알 수 있다.
+
+```sql
+select
+  (select count(*) from public.diaries) as 일기,
+  (select count(*) from public.profiles) as 프로필,
+  (select count(*) from storage.objects where bucket_id = 'diary-images') as 사진;
+```
+
+### 13-3. 결과 (사용자, 11/24)
+- 관리자 비교: 일기 1, 프로필 1, 사진 3 (사진 있는 일기 1개 작성 후)
+- 다른 사용자: 일기 0, 프로필 0, 사진 0, 수정 0, 삭제 0 → **통과.** 로그인한 사용자는 남의 일기·프로필·사진을 보거나 고치거나 지울 수 없음
+- 같은 방법으로 S5에서 미뤄 둔 `profiles` 격리 확인도 끝남
