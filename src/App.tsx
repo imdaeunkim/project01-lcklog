@@ -11,6 +11,7 @@ import DiaryFeed from "./components/DiaryFeed";
 import DiaryFormModal from "./components/DiaryFormModal";
 import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
+import ProfileEditModal from './components/ProfileEditModal';
 
 const STORAGE_KEY = 'lol-diaries-v2';
 
@@ -48,6 +49,7 @@ export default function App() {
 
   const [profileState, setProfileState] = useState<ProfileState | null>(null);
   const [profileRetry, setProfileRetry] = useState(0); // 바꾸면 프로필을 다시 불러옴
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -129,6 +131,12 @@ export default function App() {
     setProfileRetry((n) => n + 1);
   };
 
+  // 프로필 수정 성공. 새 프로필로 교체하면 승률·티어 등이 새 팀 기준으로 다시 계산됨
+  const handleProfileSaved = (saved: Profile) => {
+    if (userId) setProfileState({ userId, profile: saved });
+    setIsProfileModalOpen(false);
+  };
+
   if (!authReady) {
     return <FullScreenMessage>불러오는 중…</FullScreenMessage>;
   }
@@ -175,7 +183,7 @@ export default function App() {
             <span className="hidden text-xs text-[#9e9eb1] sm:block font-medium">
               나만을 위한 하이라이트 직관 기록
             </span>
-            <UserMenu profile={profile} />
+            <UserMenu profile={profile} onEditProfile={() => setIsProfileModalOpen(true)} />
           </div>
         </div>
       </div>
@@ -223,6 +231,16 @@ export default function App() {
           onSave={handleSaveDiary}
           editingDiary={editingDiary}
           myTeam={myTeam}
+        />
+      )}
+
+      {/* 열 때마다 새로 만들어서 지금 프로필로 입력칸을 채움 */}
+      {isProfileModalOpen && (
+        <ProfileEditModal
+          userId={userId}
+          profile={profile}
+          onClose={() => setIsProfileModalOpen(false)}
+          onSaved={handleProfileSaved}
         />
       )}
     </div>

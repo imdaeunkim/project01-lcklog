@@ -59,7 +59,8 @@ else {
     <div className="w-full bg-[#0a1428] text-[#f0e6d2] p-6 rounded-xl border border-[#c8aa6e] shadow-2xl mb-6">
   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
     
-    <div className="flex items-start md:items-center gap-5">
+    {/* min-w-0: 닉네임이 길어도 이 영역이 넘치지 않고 줄어들게 함 */}
+    <div className="flex min-w-0 max-w-full items-start md:flex-1 md:items-center gap-5">
       {/*  프로필 영역 */}
       <div className="relative flex-shrink-0">
         <div className="w-20 h-20 bg-[#1e232a] rounded-full border-2 border-[#c8aa6e] flex items-center justify-center overflow-hidden shadow-inner">
@@ -70,22 +71,23 @@ else {
         </span>
       </div>
       
-      <div className="flex flex-col items-start text-left">
-        {/* 닉네임 + 태그 */}
-        <div className="flex items-baseline gap-1.5">
-          <h1 className="text-2xl font-black tracking-wide text-white">{nickname}</h1>
-          <span className="text-sm font-bold text-[#616c7f]">#{tag}</span>
+      <div className="flex min-w-0 flex-col items-start text-left">
+        {/* 닉네임 + 태그. 닉네임은 한 줄 고정, 넘치면 …로 자르고 마우스를 올리면 전체 표시. 태그는 항상 옆에 붙음 */}
+        <div className="flex max-w-full items-baseline gap-1.5">
+          <h1 className="min-w-0 truncate text-2xl font-black tracking-wide text-white" title={`${nickname}#${tag}`}>{nickname}</h1>
+          <span className="shrink-0 text-sm font-bold text-[#616c7f]">#{tag}</span>
         </div>
 
-        {/*티어 + 직관 승률. 팀 없음이면 숨김 */}
+        {/*티어 + 직관 승률. 팀 없음이면 숨김.
+            넓은 화면(lg)에서만 한 줄, 그 외에는 설명을 티어 아래 줄에 둠. 설명은 줄바꿈 안 함 */}
         {myTeam && (
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-1 mt-1 tracking-wider">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-1 mt-1 tracking-wider">
           <div className="flex items-center gap-1.5">
             <img src={tierIcon} className="size-9 object-contain" alt={tierName} />
             <span className={`font-black ${tierColor}`}>{tierName}</span>
           </div>
-          
-          <span className="text-xs text-[#616c7f] font-normal md:ml-1">
+
+          <span className="whitespace-nowrap text-xs text-[#616c7f] font-normal lg:ml-1">
             (직관 {total}회 중 {wins}승 · 승률 {rate}%)
           </span>
         </div>
@@ -94,7 +96,7 @@ else {
     </div>
 
         {/* 팀 없음이면 승률 칸이 빠져서 2칸 */}
-        <div className={`grid ${myTeam ? 'grid-cols-3' : 'grid-cols-2'} gap-3 sm:gap-4 w-full md:w-auto md:min-w-[360px]`}>
+        <div className={`grid ${myTeam ? 'grid-cols-3' : 'grid-cols-2'} gap-3 sm:gap-4 w-full md:w-auto md:min-w-[360px] md:shrink-0`}>
           <div className="bg-[#121c2c] border border-[#1e2837] p-3 rounded-lg text-center flex flex-col items-center justify-center">
             <Award className="size-5 text-[#38bdf8] mb-1" />
             <span className="text-[11px] text-[#616c7f] font-bold block">올해 직관</span>

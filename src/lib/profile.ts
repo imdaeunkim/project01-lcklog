@@ -53,3 +53,51 @@ export async function loadOrCreateProfile(userId: string): Promise<Profile> {
   }
   throw new Error('무작위 닉네임 생성에 계속 실패함');
 }
+
+// 닉네임 변경 제한 기간 (DB 트리거 guard_nickname_change와 같은 값)
+export const NICKNAME_LOCK_DAYS = 90;
+
+// 다음 닉네임 변경 가능 시각. 첫 변경 전(null)이거나 이미 지났으면 null
+export function getNicknameUnlockDate(profile: Profile, now = new Date()): Date | null {
+  if (!profile.nicknameChangedAt) return null;
+  const unlock = new Date(profile.nicknameChangedAt);
+  unlock.setDate(unlock.getDate() + NICKNAME_LOCK_DAYS);
+  return unlock > now ? unlock : null;
+}
+
+// 화면에서 보여줄 수 있는 문구를 가진 에러
+export class ProfileUpdateError extends Error {}
+
+export interface ProfileChanges {
+  nickname?: string;
+  tag?: string;
+  myTeam?: string | null;
+}
+
+// 내 프로필 수정. 넘긴 항목만 DB에 보냄. 실패하면 안내 문구를 담은 ProfileUpdateError 발생
+export async function updateProfile(userId: string, changes: ProfileChanges): Promise<Profile> {
+  const row: Partial<ProfileRow> = {};
+  if (changes.nickname !== undefined) row.nickname = changes.nickname;
+  if (changes.tag !== undefined) row.tag = changes.tag;
+  if (changes.myTeam !== undefined) row.my_team = changes.myTeam;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(row)
+    .eq('id', userId)
+    .select(COLUMNS)
+    .single<ProfileRow>();
+
+  if (error) {
+    console.error('프로필 수정 실패:', error);
+    if (error.code === UNIQUE_VIOLATION) {
+      throw new ProfileUpdateError('이미 다른 사람이 쓰고 있는 닉네임#태그예요. 다른 이름이나 태그를 골라 주세요.');
+    }
+    // 트리거가 raise exception으로 보낸 문구는 message에 그대로 들어옴
+    if (error.message.includes('nickname_change_too_soon')) {
+      throw new ProfileUpdateError(`닉네임은 ${NICKNAME_LOCK_DAYS}일에 한 번만 바꿀 수 있어요.`);
+    }
+    throw new ProfileUpdateError('프로필을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+  }
+  return toProfile(data);
+}
