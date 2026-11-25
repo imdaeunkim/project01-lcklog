@@ -13,16 +13,16 @@ const MIN_DIARIES = 3;
 
 // 팀 id → 이름. src/data/teams.ts와 같은 목록 (대시보드 편집기로 배포하면 한 파일만 올라가서 src/를 가져오지 않고 복사함)
 const TEAM_NAMES: Record<string, string> = {
-  GEN: 'Gen.G',
-  HLE: 'Hanwha Life Esports',
-  T1: 'T1',
-  KT: 'kt Rolster',
-  DK: 'Dplus Kia',
-  BFX: 'BNK FEARX',
-  NS: 'Nongshim RedForce',
-  KRX: 'KIWOOM DRX',
-  BRO: 'HANJIN BRION',
-  DNS: 'DN sOOPers',
+  'Gen.G': 'Gen.G',
+  'Hanwha Life Esports': 'Hanwha Life Esports',
+  'T1': 'T1',
+  'KT Rolster': 'KT Rolster',
+  'Dplus Kia': 'Dplus Kia',
+  'BNK FEARX': 'BNK FEARX',
+  'Nongshim RedForce': 'Nongshim RedForce',
+  'Kiwoom DRX': 'Kiwoom DRX',
+  'HANJIN BRION': 'HANJIN BRION',
+  'DN SOOPers': 'DN SOOPers',
 };
 const teamName = (id: string) => TEAM_NAMES[id] ?? id;
 
@@ -76,6 +76,9 @@ interface DiaryRow {
 // 내 팀 기준 승패. src/utils/matchResult.ts의 getMyResult와 같은 규칙
 function getMyResult(m: DiaryRow['match'], myTeam: string | null): 'WIN' | 'LOSE' | null {
   if (!myTeam) return null;
+  // 아직 안 끝난 경기(이기는 데 필요한 세트 수에 두 팀 모두 못 닿음)는 승패 없음
+  const winsNeeded = Math.ceil(m.format / 2);
+  if (m.scoreA < winsNeeded && m.scoreB < winsNeeded) return null;
   if (m.teamA === myTeam) return m.scoreA > m.scoreB ? 'WIN' : 'LOSE';
   if (m.teamB === myTeam) return m.scoreB > m.scoreA ? 'WIN' : 'LOSE';
   return null;

@@ -16,6 +16,7 @@ import ProfileEditModal from './components/ProfileEditModal';
 import ConfirmDangerModal from './components/ConfirmDangerModal';
 import { resetMyData, deleteMyAccount } from './lib/account';
 import ReportCard from './components/ReportCard';
+import { getTeamShort } from './data/teams';
 import { fetchReport, generateReport, ReportError, type Report } from './lib/report';
 
 // 프로필 불러오기 결과. userId를 같이 기억해서 다른 계정의 결과와 섞이지 않게 함
@@ -161,7 +162,7 @@ export default function App() {
 
   // 삭제 버튼 클릭 시. 확인을 받은 뒤 DB에서 지우고, 성공하면 화면에서도 뺌
   const handleDeleteDiary = async (diary: Diary) => {
-    if (!confirm(`${diary.date} ${diary.match.teamA} vs ${diary.match.teamB} 일기를 삭제할까요?\n삭제하면 되돌릴 수 없습니다.`)) return;
+    if (!confirm(`${diary.date} ${getTeamShort(diary.match.teamA)} vs ${getTeamShort(diary.match.teamB)} 일기를 삭제할까요?\n삭제하면 되돌릴 수 없습니다.`)) return;
     try {
       await deleteDiary(diary); // 사진 파일도 함께 지움
     } catch (e) {

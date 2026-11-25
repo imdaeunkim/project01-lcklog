@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Diary } from '../types/diary';
 import { MapPin, Trophy, MessageSquare, RefreshCw, ChevronDown, ChevronUp, X, Trash2 } from 'lucide-react';
 import { getMyResult } from '../utils/matchResult';
+import { getTeamShort } from '../data/teams';
 import ResultBadge from './ResultBadge';
 
 interface DiaryFeedProps {
@@ -147,7 +148,7 @@ export default function DiaryFeed({ diaries, selectedDate, onSelectDate, onEdit,
                   <div className="flex-1 flex flex-col gap-2 relative pr-8">
                     <div className="flex flex-wrap items-center gap-2 pb-2">
                       <span className="text-xs font-black bg-[#0a1428] border border-[#c8aa6e] px-2 py-0.5 rounded text-[#f0e6d2]">
-                        {diary.match.teamA} vs {diary.match.teamB}
+                        {getTeamShort(diary.match.teamA)} vs {getTeamShort(diary.match.teamB)}
                       </span>
                       <span className="text-xs font-black text-[#2255cc] bg-[#ecf2ff] px-1.5 py-0.5 rounded">
                         {diary.match.scoreA}:{diary.match.scoreB}

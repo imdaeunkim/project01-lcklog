@@ -4,7 +4,8 @@ import { CHAMPIONS_LIST, CHAMPIONS_BY_POSITION } from "../data/champions";
 import type { Champion } from "../data/champions";
 import type { Diary, Match } from "../types/diary";
 import { IMAGE_MAX_BYTES, IMAGE_TYPES, type DiaryInput } from "../lib/diaries";
-import { getMatchesByDate } from "../data/matches";
+import { getMatchesByDate, MatchLoadError } from "../data/matches";
+import { getTeamShort } from "../data/teams";
 import { getMyResult } from "../utils/matchResult";
 import { compressImage } from "../utils/compressImage";
 import ResultBadge from "./ResultBadge";
@@ -33,8 +34,13 @@ function getTodayInputDate() {
 }
 
 // 내 팀 경기를 앞으로. 나머지는 원래 순서 유지 (sort는 같은 값끼리 순서를 바꾸지 않음)
+// 내 팀이 출전한 경기인지 확인. 아직 안 끝난 경기도 포함
+function isMyTeamMatch(m: Match, myTeam: string | null): boolean {
+  return myTeam !== null && (m.teamA === myTeam || m.teamB === myTeam);
+}
+
 function sortMyTeamFirst(matches: Match[], myTeam: string | null): Match[] {
-  const isMine = (m: Match) => (m.teamA === myTeam || m.teamB === myTeam ? 1 : 0);
+  const isMine = (m: Match) => (isMyTeamMatch(m, myTeam) ? 1 : 0);
   return [...matches].sort((a, b) => isMine(b) - isMine(a));
 }
 
@@ -67,7 +73,12 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
   // 고른 날짜의 경기 목록. loadedDate가 지금 날짜와 다르면 아직 불러오는 중
   const [matches, setMatches] = useState<Match[]>([]);
   const [loadedDate, setLoadedDate] = useState<string | null>(null);
-  const isLoadingMatches = loadedDate !== dotDate;
+  // 불러오기에 실패한 날짜와 이유. rateLimited면 요청 횟수 제한
+  const [matchError, setMatchError] = useState<{ date: string; rateLimited: boolean } | null>(null);
+  // "다시 시도"를 누를 때마다 1씩 늘려서 아래 useEffect를 다시 실행
+  const [retryCount, setRetryCount] = useState(0);
+  const isMatchError = loadedDate !== dotDate && matchError?.date === dotDate;
+  const isLoadingMatches = loadedDate !== dotDate && !isMatchError;
   // 수정 모드면 저장된 경기, 신규면 목록을 불러온 뒤 첫 경기로 채움
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(editingDiary?.match ?? null);
 
@@ -81,9 +92,21 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
       setLoadedDate(dotDate);
       // 같은 날짜의 경기를 이미 골라 둔 상태(수정 모드)면 유지, 아니면 첫 경기 선택
       setSelectedMatch((prev) => (prev && prev.date === dotDate ? prev : sorted[0] ?? null));
+    }).catch((error) => {
+      if (ignore) return;
+      console.error('경기 목록 불러오기 실패', error);
+      setMatches([]);
+      setMatchError({ date: dotDate, rateLimited: error instanceof MatchLoadError && error.rateLimited });
+      // 수정 모드에서 저장해 둔 같은 날짜 경기는 유지 (목록 없이도 다시 저장 가능)
+      setSelectedMatch((prev) => (prev && prev.date === dotDate ? prev : null));
     });
     return () => { ignore = true; };
-  }, [dotDate, myTeam]);
+  }, [dotDate, myTeam, retryCount]);
+
+  const handleRetryMatches = () => {
+    setMatchError(null); // 안내를 지우고 "불러오는 중"으로 바꿈
+    setRetryCount((n) => n + 1);
+  };
 
   // 저장된 경기가 지금 목록에 없을 수 있어서(예: 샘플 일기) 선택지에 따로 추가
   const matchOptions = selectedMatch && !matches.some((m) => m.id === selectedMatch.id)
@@ -276,6 +299,21 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
                 <label className="block text-xs font-bold text-[#6b7280] mb-1">오늘의 매치업</label>
                 {isLoadingMatches ? (
                   <div className="w-full border border-[#d1d5db] rounded-md p-2.5 text-sm font-bold text-[#9ca3af]">경기 불러오는 중…</div>
+                ) : isMatchError && matchOptions.length === 0 ? (
+                  <div className="w-full flex items-center justify-between gap-2 border border-[#ffd0d6] bg-[#fff0f2] rounded-md p-2.5 text-sm font-bold text-[#d93846]">
+                    <span>
+                      {matchError?.rateLimited
+                        ? '요청이 많아 잠시 막혔어요. 몇 초 뒤 다시 시도해 주세요'
+                        : '경기를 불러오지 못했어요'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRetryMatches}
+                      className="shrink-0 text-xs font-black bg-white border border-[#ffd0d6] rounded px-2 py-1 hover:bg-[#ffe4e8]"
+                    >
+                      다시 시도
+                    </button>
+                  </div>
                 ) : matchOptions.length === 0 ? (
                   <div className="w-full border border-dashed border-[#d1d5db] rounded-md p-2.5 text-sm font-bold text-[#9ca3af]">이 날짜에는 경기가 없음</div>
                 ) : (
@@ -286,7 +324,7 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
                   >
                     {matchOptions.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {getMyResult(m, myTeam) ? '⭐ ' : ''}{m.teamA} vs {m.teamB} (BO{m.format})
+                        {isMyTeamMatch(m, myTeam) ? '⭐ ' : ''}{getTeamShort(m.teamA)} vs {getTeamShort(m.teamB)} (BO{m.format})
                       </option>
                     ))}
                   </select>
@@ -299,7 +337,7 @@ export default function DiaryFormModal({ onClose, onSave, editingDiary, myTeam }
                 <div className="flex h-[42px] items-center justify-center gap-2 border border-[#e5e7eb] bg-[#f8f9fa] rounded-md text-sm font-black">
                   {selectedMatch && !isLoadingMatches ? (
                     <>
-                      <span>{selectedMatch.teamA} {selectedMatch.scoreA} : {selectedMatch.scoreB} {selectedMatch.teamB}</span>
+                      <span>{getTeamShort(selectedMatch.teamA)} {selectedMatch.scoreA} : {selectedMatch.scoreB} {getTeamShort(selectedMatch.teamB)}</span>
                       <ResultBadge result={getMyResult(selectedMatch, myTeam)} />
                     </>
                   ) : (
