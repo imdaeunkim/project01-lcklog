@@ -65,7 +65,7 @@ npm run preview    # 빌드 결과물 미리보기
 - 승요 리포트(S8): Edge Function `supabase/functions/lol-report/index.ts`(Deno, `src/`와 별도로 배포. `npm run build`·tsc 검사 대상 아님)가 내 일기(사진 제외)·응원팀을 읽고 Claude API를 불러 `reports` 테이블(사용자당 1행, 사용자는 읽기만)에 저장한다. `ANTHROPIC_API_KEY`는 Supabase Secrets에만 둔다. 모델은 함수의 `MODEL` 상수 한 곳. 일기 3개 이상, "일기 수 + 가장 최근 `updatedAt`"이 지난 리포트와 다를 때만 다시 만든다(함수가 검사). 앱 쪽은 `src/lib/report.ts`와 `ReportCard`(캘린더 아래, 위치 임시)이고, 리포트가 없거나 실패·30초 초과면 기본 통계를 보여준다. 함수는 한 파일로 배포할 수 있게 `src/`를 import하지 않고 팀 이름과 승패 규칙을 복사해 두었으므로, `teams.ts`나 `getMyResult`를 바꾸면 함수도 같이 고친다(`docs/db-design.md` 14번).
 - 일기 삭제는 피드의 펼친 카드에 있는 "삭제" 버튼 → 확인 창 → `App.handleDeleteDiary`.
 - `selectedDate`는 `SpectateCalendar`와 `DiaryFeed`가 공유한다. 캘린더에서 날짜를 누르면 피드가 필터링된다.
-- 승패와 승률은 저장하지 않고 항상 내 팀 기준으로 계산한다. `src/utils/matchResult.ts`의 `getMyResult(match, myTeam)`(팀 없음이거나 내 팀 경기가 아니면 `null`)과 `getWinStats(diaries, myTeam)`을 모든 화면이 같이 쓴다. 내 팀 경기가 아닌 일기는 승률에서 빠진다. 그래서 내 팀을 바꾸면 승패 아이콘과 승률이 자동으로 다시 계산된다.
+- 승패와 승률은 저장하지 않고 항상 내 팀 기준으로 계산한다. `src/utils/matchResult.ts`의 `getMyResult(match, myTeam)`(팀 없음, 내 팀 경기가 아님, 아직 안 끝난 경기면 `null`. 안 끝남 = 두 팀 모두 이기는 데 필요한 세트 수 `Math.ceil(format / 2)`에 못 닿음)과 `getWinStats(diaries, myTeam)`을 모든 화면이 같이 쓴다. 내 팀 경기가 아닌 일기는 승률에서 빠진다. 그래서 내 팀을 바꾸면 승패 아이콘과 승률이 자동으로 다시 계산된다.
 - 승패 아이콘은 `ResultBadge` 컴포넌트에서만 그린다.
 
 ### Diary 객체 형태 (DiaryFormModal.handleSubmit, lib/diaries.ts 기준)
@@ -73,7 +73,7 @@ npm run preview    # 빌드 결과물 미리보기
 
 - `id`: DB가 매기는 번호(bigint). 새 일기를 보낼 때는 넣지 않는다
 - `date`: **`"YYYY.MM.DD"` 문자열**(점 구분). `<input type="date">`는 `YYYY-MM-DD`를 쓰므로 모달이 로드하고 저장할 때 서로 변환한다. 캘린더와 피드의 날짜 비교도 점 구분 형식에 의존한다.
-- `match`: `Match` 객체 `{ id, date, teamA, teamB, scoreA, scoreB, format: 1 | 3 | 5 }`. 팀은 `src/data/teams.ts`의 id. 모달에서 고른 경기를 통째로 복사해 저장한다(경기 목록이 바뀌어도 일기는 유지). 승패(`result`) 필드는 없다.
+- `match`: `Match` 객체 `{ id, date, teamA, teamB, scoreA, scoreB, format: 1 | 3 | 5 }`. 팀은 `src/data/teams.ts`의 id(S9부터 Leaguepedia 2026 팀 이름과 같은 값, 예: `'Hanwha Life Esports'`. S8 이전 일기에는 `GEN` 같은 옛 약어 id가 남아 있을 수 있음). 모달에서 고른 경기를 통째로 복사해 저장한다(경기 목록이 바뀌어도 일기는 유지). 승패(`result`) 필드는 없다.
 - `updatedAt`: DB `updated_at`(수정하면 트리거가 갱신). 리포트를 다시 만들 수 있는지 판단할 때 쓴다.
 - `location`, `pom`: `string | null`. 비어 있으면 null로 저장하고, 피드에서는 그 줄을 표시하지 않는다.
 - `pickedChampions`: `Record<slotKey, { name, imageUrl }>`. slotKey 형식은 `game{gameIndex}-{blue|red}-{boxIndex}`이고, DiaryFeed가 같은 키로 세트별 밴픽을 그린다. 모달은 `match.format`만큼 세트 칸을 보여주고, 저장할 때 그보다 뒤 세트의 밴픽은 버린다.
@@ -82,8 +82,8 @@ npm run preview    # 빌드 결과물 미리보기
 
 ### 정적 데이터와 에셋
 - `src/data/champions.ts`: 선택 가능한 챔피언 목록(`CHAMPIONS_LIST`, `CHAMPIONS_BY_POSITION`). `npm run gen:champions`가 만드는 파일이라 직접 고치지 않는다.
-- `src/data/teams.ts`: LCK 팀 목록(`TEAMS`)과 `getTeamName(id)`.
-- `src/data/matches.ts`: `getMatchesByDate(date)`가 그날 경기 목록을 Promise로 돌려준다. 지금은 시연용 샘플 데이터이고, 경기 API를 붙일 때 이 함수 안쪽만 바꾼다. 작성 모달은 날짜가 바뀔 때마다 이 함수를 불러 경기 목록을 채운다(내 팀 경기가 맨 앞).
+- `src/data/teams.ts`: LCK 팀 목록(`TEAMS`: `id`, `name`, `short`), `getTeamName(id)`, `getTeamShort(id)`(좁은 칸·"A vs B" 표시용 약어), `toTeamId(apiName)`(시즌 중 바뀐 API 이름 `DRX`·`BRION`을 지금 id로 바꿈, 표는 `TEAM_ALIASES`). 화면에서 팀을 보여줄 때는 id를 그대로 쓰지 않고 이 함수들을 쓴다.
+- `src/data/matches.ts`: `getMatchesByDate(date)`가 그날(한국 날짜) LCK 경기 목록을 Promise로 돌려준다(S9). Leaguepedia Cargo API(`lol.fandom.com/api.php`, 키 없음, 브라우저에서 바로 호출)의 `MatchSchedule`에서 `OverviewPage LIKE "LCK/%"`(쇼매치 제외)를 조회한다. 비로그인 요청은 횟수 제한(`ratelimited`)이 빡빡해서 한국 시간 기준 **1년치를 한 번에** 받아 연도별로 메모리에 저장하고(실패하면 저장 안 함), 날짜는 UTC 시간을 한국 날짜로 바꿔 골라낸다. 2026년 이전은 부르지 않는다. 실패하면 `MatchLoadError`(`rateLimited` 포함)를 던지고 모달이 안내와 "다시 시도" 버튼을 띄운다. 작성 모달은 날짜가 바뀔 때마다 이 함수를 불러 경기 목록을 채운다(내 팀 경기가 맨 앞).
 - `src/assets/positions/*.png`: 포지션 필터 아이콘. DiaryFormModal에서 import한다.
 
 ### 스타일

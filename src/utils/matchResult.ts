@@ -1,8 +1,14 @@
 import type { Diary, Match } from '../types/diary';
 
-// 내 팀 기준 승패. 팀 없음이거나 내 팀이 출전하지 않은 경기면 null
+// 경기가 끝났는지 확인. 이기는 데 필요한 세트 수(BO1=1, BO3=2, BO5=3)에 한 팀이라도 닿았으면 끝남
+function isMatchFinished(match: Match): boolean {
+  const winsNeeded = Math.ceil(match.format / 2);
+  return match.scoreA >= winsNeeded || match.scoreB >= winsNeeded;
+}
+
+// 내 팀 기준 승패. 팀 없음, 내 팀이 출전하지 않은 경기, 아직 안 끝난 경기(0:0, 진행 중 1:0 등)면 null
 export function getMyResult(match: Match, myTeam: string | null): 'WIN' | 'LOSE' | null {
-  if (!myTeam) return null;
+  if (!myTeam || !isMatchFinished(match)) return null;
   if (match.teamA === myTeam) {
     return match.scoreA > match.scoreB ? 'WIN' : 'LOSE';
   }

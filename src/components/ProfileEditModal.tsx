@@ -146,7 +146,7 @@ export default function ProfileEditModal({ userId, profile, onClose, onSaved }: 
                 disabled={isSaving}
                 className={teamButtonClass(myTeam === team.id)}
               >
-                <span className="block text-[11px] opacity-70">{team.id}</span>
+                <span className="block text-[11px] opacity-70">{team.short}</span>
                 {team.name}
               </button>
             ))}

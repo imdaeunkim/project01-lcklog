@@ -2,6 +2,7 @@ import React from 'react';
 import type { Diary } from '../types/diary'; 
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getMyResult, getWinStats } from '../utils/matchResult';
+import { getTeamShort } from '../data/teams';
 import ResultBadge from './ResultBadge';
 
 interface SpectateCalendarProps {
@@ -116,7 +117,8 @@ export default function SpectateCalendar({
           const isLose = result === 'LOSE';
           // 내 팀 경기면 상대 팀과 내 팀 기준 스코어(내 점수:상대 점수)
           const isMyTeamA = match?.teamA === myTeam;
-          const opponent = isMyTeamA ? match?.teamB : match?.teamA;
+          const opponentId = isMyTeamA ? match?.teamB : match?.teamA;
+          const opponent = opponentId ? getTeamShort(opponentId) : ''; // 좁은 칸이라 짧은 이름
           const myScoreText = match ? (isMyTeamA ? `${match.scoreA}:${match.scoreB}` : `${match.scoreB}:${match.scoreA}`) : '';
 
           return (
@@ -151,7 +153,7 @@ export default function SpectateCalendar({
                     </div>
                   ) : (
                     <div className="bg-[#f3f4f6] border border-[#e5e7eb] rounded px-1 py-0.5 text-center">
-                      <span className="text-[9px] font-bold text-[#6b7280] block leading-none">{match.teamA} vs {match.teamB}</span>
+                      <span className="text-[9px] font-bold text-[#6b7280] block leading-none">{getTeamShort(match.teamA)} vs {getTeamShort(match.teamB)}</span>
                     </div>
                   )}
                 </div>
